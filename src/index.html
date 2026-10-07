@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <title>Salud Financiera</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Gestión de finanzas personales: ingresos, egresos, análisis y recomendaciones de ahorro.">
+  <meta name="theme-color" content="#16457a">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preload" href="fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/inter-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <script>
+    // Aplica el tema antes de pintar para evitar un destello claro en modo oscuro
+    try {
+      var t = localStorage.getItem('salud-financiera.tema');
+      if (t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>

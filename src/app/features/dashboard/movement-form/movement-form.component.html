@@ -1,0 +1,135 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <a class="back" [routerLink]="isEdit() ? ['/movimientos', id()] : '/movimientos'">
+        <svg lucideIcon="arrow-left" [size]="14" aria-hidden="true"></svg> {{ isEdit() ? 'Volver al detalle' : 'Movimientos' }}
+      </a>
+      <h1 class="page-title">{{ isEdit() ? 'Editar movimiento' : 'Registrar movimiento' }}</h1>
+      <p class="page-subtitle">{{ isEdit() ? 'Corrige lo que haga falta y guarda los cambios.' : 'Anota un ingreso o un egreso con su categoría y fecha.' }}</p>
+    </div>
+  </header>
+
+  <app-card>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <span class="field-label" id="type-label">Tipo</span>
+        <div class="segmented type-toggle" role="radiogroup" aria-labelledby="type-label">
+          <button type="button" role="radio" [class.active]="type() === 'egreso'" [attr.aria-checked]="type() === 'egreso'" (click)="setType('egreso')">
+            <svg lucideIcon="trending-down" [size]="14" aria-hidden="true"></svg> Egreso
+          </button>
+          <button type="button" role="radio" [class.active]="type() === 'ingreso'" [attr.aria-checked]="type() === 'ingreso'" (click)="setType('ingreso')">
+            <svg lucideIcon="trending-up" [size]="14" aria-hidden="true"></svg> Ingreso
+          </button>
+        </div>
+      </div>
+
+      <div class="form-grid form-grid--2">
+        <div class="field">
+          <label class="field-label" for="amount">Monto</label>
+          <div class="input-group">
+            <span class="input-prefix">$</span>
+            <input
+              id="amount"
+              class="input amount-input pc-num"
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              min="0.01"
+              placeholder="0.00"
+              formControlName="amount"
+              [appAutofocus]="!isEdit()"
+            />
+          </div>
+          @if (error('amount'); as message) {
+            <span class="field-error">{{ message }}</span>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="date">Fecha</label>
+          <input id="date" class="input" type="date" formControlName="date" [min]="minDate" [max]="maxDate" />
+          @if (error('date'); as message) {
+            <span class="field-error">{{ message }}</span>
+          }
+        </div>
+
+        <div class="field span-2">
+          <div class="label-row">
+            <span class="field-label" id="category-label">Categoría</span>
+            @if (!addingCategory()) {
+              <button type="button" class="pc-boton pc-btn--ghost" (click)="startCategory()">
+                <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Nueva categoría
+              </button>
+            }
+          </div>
+
+          @if (addingCategory()) {
+            <div class="new-category mov-entrar">
+              <input
+                class="input"
+                [formControl]="newCategory"
+                [maxlength]="categoryMax"
+                placeholder="Ej. Mascotas, Educación…"
+                appAutofocus
+                (keydown.enter)="$event.preventDefault(); saveCategory()"
+                (keydown.escape)="cancelCategory()"
+              />
+              <button type="button" class="pc-boton boton-elevado" (click)="saveCategory()">Agregar</button>
+              <button type="button" class="pc-boton pc-btn--ghost" (click)="cancelCategory()">Cancelar</button>
+            </div>
+            <span class="field-hint pc-num">{{ newCategory.value.length }}/{{ categoryMax }}</span>
+            @if (categoryError(); as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          }
+
+          <div class="chips" role="radiogroup" aria-labelledby="category-label">
+            @for (c of categoryOptions(); track c) {
+              <label class="chip chip-elevado" [class.is-activo]="form.controls.category.value === c">
+                <input type="radio" class="sr-only" formControlName="category" [value]="c" />
+                {{ c }}
+              </label>
+            }
+          </div>
+          @if (error('category'); as message) {
+            <span class="field-error">{{ message }}</span>
+          }
+        </div>
+
+        <div class="field span-2">
+          <label class="field-label" for="description">Descripción <span class="optional">(opcional)</span></label>
+          <textarea
+            id="description"
+            class="input"
+            rows="2"
+            formControlName="description"
+            [maxlength]="descriptionMax"
+            placeholder="Ej. Renta de octubre, súper de la semana…"
+          ></textarea>
+          @if (error('description'); as message) {
+            <span class="field-error">{{ message }}</span>
+          } @else {
+            <span class="field-hint counter pc-num">{{ descriptionLength().length }}/{{ descriptionMax }}</span>
+          }
+        </div>
+      </div>
+
+      <div class="actions">
+        <a class="pc-boton pc-btn--ghost" [routerLink]="isEdit() ? ['/movimientos', id()] : '/movimientos'">Cancelar</a>
+        @if (!isEdit()) {
+          <button type="button" class="pc-boton boton-elevado" (click)="submit(true)">
+            @if (justSaved()) {
+              <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" class="saved-check" aria-hidden="true"></svg> Guardado
+            } @else {
+              Guardar y agregar otro
+            }
+          </button>
+        }
+        <button type="submit" class="pc-boton boton-primario-elevado">
+          <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg>
+          {{ isEdit() ? 'Guardar cambios' : 'Guardar ' + typeLabel[type()].toLowerCase() }}
+        </button>
+      </div>
+    </form>
+  </app-card>
+</div>

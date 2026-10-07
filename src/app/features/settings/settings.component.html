@@ -1,0 +1,131 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Ajustes</span>
+      <h1 class="page-title">Tu cuenta y tus datos</h1>
+      <p class="page-subtitle">Cambia tu acceso, administra tus categorías y respalda tu información.</p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <app-card title="Perfil y acceso" subtitle="Para guardar cambios confirma tu respuesta actual">
+      <form [formGroup]="profile" (ngSubmit)="saveProfile()" class="form-grid" novalidate>
+        <div class="field">
+          <label class="field-label" for="s-name">Nombre</label>
+          <input id="s-name" class="input" formControlName="name" maxlength="30" />
+          @if (profileInvalid('name')) {
+            <span class="field-error">Escribe tu nombre (máx. 30 caracteres).</span>
+          }
+        </div>
+        <div class="field">
+          <label class="field-label" for="s-question">Pregunta secreta</label>
+          <input id="s-question" class="input" formControlName="secretQuestion" maxlength="100" />
+          @if (profileInvalid('secretQuestion')) {
+            <span class="field-error">Escribe una pregunta.</span>
+          }
+        </div>
+        <div class="field">
+          <label class="field-label" for="s-new">Nueva respuesta <span class="optional">(opcional)</span></label>
+          <input id="s-new" class="input" type="password" formControlName="newAnswer" autocomplete="new-password" placeholder="Déjalo vacío para conservarla" />
+          @if (profileInvalid('newAnswer')) {
+            <span class="field-error">Mínimo 2 caracteres.</span>
+          }
+        </div>
+        <div class="field">
+          <label class="field-label" for="s-current">Respuesta actual</label>
+          <input id="s-current" class="input" type="password" formControlName="currentAnswer" autocomplete="current-password" />
+          @if (profileInvalid('currentAnswer')) {
+            <span class="field-error">Necesaria para confirmar los cambios.</span>
+          }
+          @if (profileError(); as message) {
+            <span class="field-error" role="alert">{{ message }}</span>
+          }
+        </div>
+        <div class="row-end">
+          <button type="submit" class="pc-boton boton-primario-elevado"><svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> Guardar perfil</button>
+        </div>
+      </form>
+    </app-card>
+
+    <app-card title="Categorías personalizadas" [subtitle]="'Máximo ' + categoryMax + ' caracteres por nombre'">
+      @for (type of types; track type) {
+        <section class="cat-section">
+          <h3 class="etiqueta">{{ typeLabel[type] }}s</h3>
+          <div class="cat-add">
+            <input
+              class="input"
+              [formControl]="newCategory[type]"
+              [maxlength]="categoryMax"
+              [placeholder]="'Nueva categoría de ' + typeLabel[type].toLowerCase()"
+              (keydown.enter)="addCategory(type)"
+            />
+            <button type="button" class="pc-boton boton-elevado" (click)="addCategory(type)">
+              <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar
+            </button>
+          </div>
+          @if (categoryError()[type]; as message) {
+            <span class="field-error">{{ message }}</span>
+          }
+          @if (finance.customCategories()[type].length) {
+            <ul class="cat-list">
+              @for (c of finance.customCategories()[type]; track c) {
+                <li>
+                  <span>{{ c }}</span>
+                  <button type="button" class="icon-btn icon-btn--danger" (click)="removeCategory(type, c)" [attr.aria-label]="'Eliminar ' + c" [title]="'Eliminar ' + c">
+                    <svg lucideIcon="x" [size]="14" aria-hidden="true"></svg>
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="muted">Sin categorías personalizadas.</p>
+          }
+        </section>
+      }
+    </app-card>
+
+    <app-card title="Datos" subtitle="Todo se guarda localmente en este navegador">
+      <div class="usage">
+        <div class="usage__row">
+          <span>{{ movementCount() }} movimientos</span>
+          <span class="muted pc-num">{{ usage().kb }} KB de ~5 MB</span>
+        </div>
+        <div class="usage__track"><div class="usage__fill" [style.width.%]="usage().percent"></div></div>
+        <p class="muted small">
+          Los movimientos con más de {{ retentionYears }} años se eliminan automáticamente al abrir la app para no saturar el almacenamiento.
+        </p>
+      </div>
+
+      <div class="data-actions">
+        <button type="button" class="pc-boton boton-elevado" (click)="exportCsv()" [disabled]="!movementCount()">
+          <svg lucideIcon="download" [size]="14" aria-hidden="true"></svg> Exportar CSV
+        </button>
+        <button type="button" class="pc-boton boton-elevado" (click)="exportJson()">
+          <svg lucideIcon="download" [size]="14" aria-hidden="true"></svg> Descargar respaldo (JSON)
+        </button>
+        <label class="pc-boton boton-elevado">
+          <svg lucideIcon="upload" [size]="14" aria-hidden="true"></svg> Restaurar respaldo
+          <input type="file" accept="application/json,.json" class="sr-only" (change)="importJson($event)" />
+        </label>
+        <button type="button" class="pc-boton boton-elevado" (click)="loadSample()">Cargar datos de ejemplo</button>
+      </div>
+    </app-card>
+
+    <app-card title="Zona de riesgo">
+      <div class="danger-zone">
+        <div>
+          <strong>Borrar movimientos</strong>
+          <p class="muted small">Conserva tu usuario y categorías.</p>
+        </div>
+        <button type="button" class="pc-boton boton-elevado boton-peligro" (click)="clearMovements()" [disabled]="!movementCount()">Borrar movimientos</button>
+      </div>
+      <div class="danger-zone">
+        <div>
+          <strong>Restablecer la aplicación</strong>
+          <p class="muted small">Elimina absolutamente todo y vuelve a la configuración inicial.</p>
+        </div>
+        <button type="button" class="pc-boton pc-btn--destructive" (click)="resetApp()">Borrar todo</button>
+      </div>
+    </app-card>
+  </div>
+</div>

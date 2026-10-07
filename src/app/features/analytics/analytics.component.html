@@ -1,0 +1,65 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Análisis</span>
+      <h1 class="page-title">Cómo se mueve tu dinero</h1>
+      <p class="page-subtitle">Totales, tendencia y recomendaciones para ahorrar en el período que elijas.</p>
+    </div>
+  </header>
+
+  <section class="period" aria-label="Período de análisis">
+    <div class="segmented" role="radiogroup" aria-label="Período">
+      @for (o of options; track o.value) {
+        <button type="button" role="radio" [class.active]="preset() === o.value" [attr.aria-checked]="preset() === o.value" (click)="setPreset(o.value)">{{ o.label }}</button>
+      }
+    </div>
+    @if (preset() === 'custom') {
+      <div class="period-custom">
+        <div class="field">
+          <label class="field-label" for="p-from">Desde</label>
+          <input id="p-from" class="input" type="date" [value]="customFrom()" (change)="setCustom('from', $any($event.target).value)" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="p-to">Hasta</label>
+          <input id="p-to" class="input" type="date" [value]="customTo()" (change)="setCustom('to', $any($event.target).value)" />
+        </div>
+      </div>
+    }
+    <p class="period-range pc-num">
+      {{ range().from | dateFormat: 'short' }} – {{ range().to | dateFormat: 'short' }} ·
+      {{ summary().count }} {{ summary().count === 1 ? 'movimiento' : 'movimientos' }}
+    </p>
+  </section>
+
+  <section class="stats-grid" aria-label="Resumen general">
+    <app-stat-tile label="Total de ingresos" [value]="fmt(summary().income)" tone="income" />
+    <app-stat-tile label="Total de egresos" [value]="fmt(summary().expense)" tone="expense" />
+    <app-stat-tile label="Saldo neto" [value]="fmt(summary().net)" [negative]="summary().net < 0" hint="Ingresos − egresos" />
+    <app-stat-tile label="Porcentaje de ahorro" [value]="savings()" hint="Saldo neto / ingresos" />
+  </section>
+
+  <app-card title="Recomendaciones para ahorrar" subtitle="Se calculan solas a partir de tus movimientos">
+    <app-insights [insights]="insights()" />
+  </app-card>
+
+  <div class="charts">
+    <app-card title="Distribución de egresos" subtitle="Por categoría, en el período">
+      <app-pie-chart [slices]="slices()" totalLabel="Total egresos" emptyText="Sin egresos en este período" />
+    </app-card>
+    <app-card title="Ingresos vs egresos" subtitle="Últimos 6 meses">
+      <app-bar-chart [points]="series()" />
+    </app-card>
+    <app-card class="wide" title="Tendencia del saldo neto" subtitle="Últimos 6 meses">
+      <app-line-chart [points]="series()" />
+    </app-card>
+  </div>
+
+  <div class="two-col">
+    <app-card title="Egresos por categoría" [subtitle]="fmt(summary().expense) + ' en total'">
+      <app-category-breakdown [stats]="expenseStats()" type="egreso" />
+    </app-card>
+    <app-card title="Ingresos por categoría" [subtitle]="fmt(summary().income) + ' en total'">
+      <app-category-breakdown [stats]="incomeStats()" type="ingreso" />
+    </app-card>
+  </div>
+</div>

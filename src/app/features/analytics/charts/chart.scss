@@ -1,0 +1,71 @@
+// Estilos compartidos por las gráficas SVG
+:host {
+  display: block;
+  position: relative;
+  min-width: 0;
+}
+
+svg {
+  display: block;
+  overflow: visible;
+}
+
+.grid-line { stroke: var(--divisor-tenue); stroke-width: 1; }
+.zero-line { stroke: var(--texto-tenue); stroke-width: 1; }
+.axis-label { fill: var(--texto-tenue); font-size: 11px; font-variant-numeric: tabular-nums; font-family: var(--font-sans); }
+.hover-band { fill: var(--primary); opacity: 0.06; }
+.hit { fill: transparent; cursor: crosshair; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--texto-medio);
+
+  li { display: inline-flex; align-items: center; gap: 6px; }
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 150px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--surface-elevada);
+  border: 1px solid var(--divisor-tenue);
+  box-shadow: var(--sombra-elevada);
+  font-size: 12px;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 10px));
+  white-space: nowrap;
+
+  .tooltip__title { font-weight: 600; margin-bottom: 4px; color: var(--foreground); }
+  .tooltip__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--texto-medio);
+
+    span:last-child { margin-left: auto; padding-left: 12px; color: var(--foreground); font-variant-numeric: tabular-nums; font-weight: 500; }
+  }
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  color: var(--texto-tenue);
+  font-size: 12px;
+  text-align: center;
+}

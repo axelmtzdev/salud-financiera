@@ -1,0 +1,81 @@
+:host { display: block; }
+
+.page { max-width: 760px; }
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--texto-tenue);
+
+  &:hover { color: var(--texto-activo); }
+}
+
+form { display: flex; flex-direction: column; gap: 20px; }
+
+.type-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  max-width: 360px;
+
+  button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; }
+}
+
+.amount-input { font-size: 15px; font-weight: 600; }
+
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.new-category {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  .input { flex: 1; min-width: 0; }
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chip:has(input:focus-visible) {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+}
+
+.counter { align-self: flex-end; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 4px -20px -20px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--divisor-tenue);
+  background: var(--pie-tarjeta);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+
+@media (max-width: 519px) {
+  .actions .pc-boton { flex: 1 1 100%; height: 44px; }
+}
+
+.saved-check { animation: pop-check 0.4s var(--ease-resorte); }
+
+@keyframes pop-check {
+  from { transform: scale(0.3); opacity: 0; }
+}

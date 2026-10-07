@@ -1,0 +1,143 @@
+<div class="toolbar">
+  <label class="search">
+    <svg lucideIcon="search" [size]="14" aria-hidden="true"></svg>
+    <span class="sr-only">Buscar por descripción</span>
+    <input
+      class="input"
+      type="search"
+      placeholder="Busca por descripción: renta, súper…"
+      [value]="filters().search"
+      (input)="setFilter('search', $any($event.target).value)"
+    />
+  </label>
+
+  <div class="segmented" role="radiogroup" aria-label="Tipo de movimiento">
+    <button type="button" role="radio" [class.active]="filters().type === 'all'" [attr.aria-checked]="filters().type === 'all'" (click)="setFilter('type', 'all')">Todos</button>
+    <button type="button" role="radio" [class.active]="filters().type === 'ingreso'" [attr.aria-checked]="filters().type === 'ingreso'" (click)="setFilter('type', 'ingreso')">Ingresos</button>
+    <button type="button" role="radio" [class.active]="filters().type === 'egreso'" [attr.aria-checked]="filters().type === 'egreso'" (click)="setFilter('type', 'egreso')">Egresos</button>
+  </div>
+
+  <button
+    type="button"
+    class="pc-boton boton-elevado"
+    [class.is-abierto]="showFilters()"
+    (click)="showFilters.set(!showFilters())"
+    [attr.aria-expanded]="showFilters()"
+  >
+    <svg lucideIcon="sliders-horizontal" [size]="14" aria-hidden="true"></svg> Filtros
+    @if (activeFilterCount() > 0) {
+      <span class="count pc-num">{{ activeFilterCount() }}</span>
+    }
+  </button>
+</div>
+
+@if (showFilters()) {
+  <div class="filters mov-entrar">
+    <div class="field">
+      <label class="field-label" for="f-category">Categoría</label>
+      <select id="f-category" class="input" [value]="filters().category" (change)="setFilter('category', $any($event.target).value)">
+        <option value="all">Todas</option>
+        @for (c of categoryOptions(); track c) {
+          <option [value]="c" [selected]="c === filters().category">{{ c }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label class="field-label" for="f-from">Desde</label>
+      <input id="f-from" class="input" type="date" [value]="filters().from" (change)="setFilter('from', $any($event.target).value)" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="f-to">Hasta</label>
+      <input id="f-to" class="input" type="date" [value]="filters().to" (change)="setFilter('to', $any($event.target).value)" />
+    </div>
+    <div class="filters__actions">
+      <button type="button" class="pc-boton pc-btn--ghost" (click)="clearFilters()" [disabled]="activeFilterCount() === 0">
+        Limpiar filtros
+      </button>
+    </div>
+    @if (rangeInvalid()) {
+      <p class="field-error span-all">"Desde" es posterior a "Hasta". Cambia alguna de las dos fechas.</p>
+    }
+  </div>
+}
+
+@if (filtered().length) {
+  <div class="summary">
+    <span class="etiqueta">{{ filtered().length }} {{ filtered().length === 1 ? 'movimiento' : 'movimientos' }}</span>
+    <span class="summary__totals pc-num">
+      <span class="text-income">+{{ totals().income | currencyFormat }}</span>
+      <span class="text-expense">−{{ totals().expense | currencyFormat }}</span>
+      <strong [class.text-expense]="totals().net < 0">= {{ totals().net | currencyFormat }}</strong>
+    </span>
+  </div>
+
+  <div class="table-wrap">
+    <div class="tabla" role="table" aria-label="Movimientos">
+      <div class="fila fila--head" role="row">
+        <span class="etiqueta" role="columnheader">Fecha</span>
+        <span class="etiqueta" role="columnheader">Tipo</span>
+        <span class="etiqueta" role="columnheader">Categoría</span>
+        <span class="etiqueta" role="columnheader">Descripción</span>
+        <span class="etiqueta num" role="columnheader">Monto</span>
+        <span class="sr-only" role="columnheader">Acciones</span>
+      </div>
+      @for (m of visible(); track m.id; let i = $index) {
+        <div class="fila mov-entrar" role="row" [style.animation-delay.ms]="i < 12 ? i * 20 : 0">
+          <span class="c-date pc-num" role="cell">{{ m.date | dateFormat: 'short' }}</span>
+          <span class="c-type" role="cell">
+            <span class="pill" [class.pill--ingreso]="m.type === 'ingreso'" [class.pill--egreso]="m.type === 'egreso'">
+              <span class="punto"></span>{{ typeLabel[m.type] }}
+            </span>
+          </span>
+          <span class="c-cat" role="cell">
+            <span class="punto" [style.background]="finance.colorOf(m.type, m.category)"></span>{{ m.category }}
+          </span>
+          <span class="c-desc" role="cell" [class.text-muted]="!m.description">{{ m.description || '—' }}</span>
+          <span class="c-amount num amount" role="cell" [class.text-income]="m.type === 'ingreso'" [class.text-expense]="m.type === 'egreso'">
+            {{ m.type === 'ingreso' ? '+' : '−' }}{{ m.amount | currencyFormat }}
+          </span>
+          <span class="c-actions" role="cell">
+            <a class="icon-btn" [routerLink]="['/movimientos', m.id]" title="Ver detalle" aria-label="Ver detalle">
+              <svg lucideIcon="eye" [size]="15" aria-hidden="true"></svg>
+            </a>
+            <a class="icon-btn" [routerLink]="['/movimientos', m.id, 'editar']" title="Editar" aria-label="Editar">
+              <svg lucideIcon="pencil" [size]="15" aria-hidden="true"></svg>
+            </a>
+            <button type="button" class="icon-btn icon-btn--danger" (click)="remove(m)" title="Eliminar" aria-label="Eliminar">
+              <svg lucideIcon="trash-2" [size]="15" aria-hidden="true"></svg>
+            </button>
+          </span>
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (filtered().length > visible().length) {
+    <div class="more">
+      <button type="button" class="pc-boton boton-elevado" (click)="loadMore()">
+        Mostrar más ({{ filtered().length - visible().length }} restantes)
+      </button>
+    </div>
+  }
+} @else if (hasMovements()) {
+  <div class="empty-state">
+    <span class="empty-state__icon"><svg lucideIcon="search-x" [size]="20" [strokeWidth]="1.75" aria-hidden="true"></svg></span>
+    <h3>Sin resultados</h3>
+    <p>Ningún movimiento coincide con los filtros. Quita alguno o cambia el rango de fechas.</p>
+    <div class="empty-state__actions">
+      <button type="button" class="pc-boton boton-elevado" (click)="clearFilters()">Limpiar filtros</button>
+    </div>
+  </div>
+} @else {
+  <div class="empty-state">
+    <span class="empty-state__icon"><svg lucideIcon="inbox" [size]="20" [strokeWidth]="1.75" aria-hidden="true"></svg></span>
+    <h3>Aún no tienes movimientos</h3>
+    <p>Registra tu primer ingreso o egreso, o carga datos de ejemplo para explorar la app.</p>
+    <div class="empty-state__actions">
+      <a class="pc-boton boton-primario-elevado" routerLink="/movimientos/nuevo">
+        <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Registrar movimiento
+      </a>
+      <button type="button" class="pc-boton boton-elevado" (click)="loadSample()">Cargar datos de ejemplo</button>
+    </div>
+  </div>
+}
