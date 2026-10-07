@@ -2,9 +2,11 @@ import { CATEGORY_MAX_LENGTH, DEFAULT_CATEGORIES, DESCRIPTION_MAX_LENGTH } from 
 import {
   AppData,
   CustomCategories,
+  MerchantRule,
   Movement,
   MOVEMENT_TYPES,
   MovementType,
+  PendingMovement,
   UserProfile,
   createEmptyData,
 } from '../models/finance.models';
@@ -51,8 +53,48 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
       user: sanitizeUser(raw['user']),
       movements,
       categories: sanitizeCategories(raw['categories']),
+      pending: sanitizeList(raw['pending'], sanitizePending).slice(-MAX_PENDING),
+      rules: sanitizeList(raw['rules'], sanitizeRule),
     },
     discarded,
+  };
+}
+
+export const MAX_PENDING = 200;
+
+function sanitizeList<T>(raw: unknown, sanitize: (item: unknown) => T | null): T[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(sanitize).filter((item): item is T => item !== null);
+}
+
+export function sanitizePending(raw: unknown): PendingMovement | null {
+  if (!isRecord(raw)) return null;
+  const { id, type, amount, merchant, card, date, receivedAt } = raw;
+  if (!MOVEMENT_TYPES.includes(type as MovementType)) return null;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) return null;
+  if (!isValidIsoDate(date)) return null;
+  return {
+    id: nonEmptyString(id) ? id : uuid(),
+    type: type as MovementType,
+    amount: round2(amount),
+    merchant: typeof merchant === 'string' ? collapseSpaces(merchant).slice(0, 80) : '',
+    card: typeof card === 'string' ? collapseSpaces(card).slice(0, 40) : '',
+    date,
+    receivedAt:
+      typeof receivedAt === 'string' && !Number.isNaN(Date.parse(receivedAt)) ? receivedAt : new Date().toISOString(),
+  };
+}
+
+function sanitizeRule(raw: unknown): MerchantRule | null {
+  if (!isRecord(raw)) return null;
+  const { pattern, label, type, category } = raw;
+  if (!nonEmptyString(pattern) || !nonEmptyString(category)) return null;
+  if (!MOVEMENT_TYPES.includes(type as MovementType)) return null;
+  return {
+    pattern: normalizeText(pattern).slice(0, 80),
+    label: nonEmptyString(label) ? collapseSpaces(label).slice(0, 80) : pattern,
+    type: type as MovementType,
+    category: collapseSpaces(category).slice(0, 40),
   };
 }
 

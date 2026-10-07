@@ -11,10 +11,11 @@ import { formatCurrency, formatPercent } from '../../shared/utils/format.utils';
 import { resolvePeriod } from '../../shared/utils/period.utils';
 import { InsightsComponent } from '../analytics/insights/insights.component';
 import { MovementsListComponent } from './movements-list/movements-list.component';
+import { PendingInboxComponent } from './pending-inbox/pending-inbox.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, LucideDynamicIcon, CardComponent, StatTileComponent, InsightsComponent, MovementsListComponent],
+  imports: [RouterLink, LucideDynamicIcon, CardComponent, StatTileComponent, InsightsComponent, MovementsListComponent, PendingInboxComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -30,6 +31,8 @@ import { MovementsListComponent } from './movements-list/movements-list.componen
           </a>
         </div>
       </header>
+
+      <app-pending-inbox />
 
       <section class="stats-grid" aria-label="Resumen del mes">
         <app-stat-tile label="Ingresos del mes" [value]="fmt(summary().income)" tone="income" />

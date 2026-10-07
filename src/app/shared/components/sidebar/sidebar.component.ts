@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
+import { InboxService } from '../../../core/services/inbox.service';
 
 interface NavItem {
   path: string;
@@ -27,6 +28,9 @@ interface NavItem {
         >
           <svg [lucideIcon]="item.icon" [size]="16" aria-hidden="true"></svg>
           <span>{{ item.label }}</span>
+          @if (item.path === '/movimientos' && pending() > 0) {
+            <span class="badge pc-num" [attr.aria-label]="pending() + ' cargos por confirmar'">{{ pending() }}</span>
+          }
         </a>
       }
     </nav>
@@ -45,6 +49,13 @@ interface NavItem {
       box-shadow: 0 -8px 20px -14px rgba(31, 18, 32, 0.35);
     }
     .nav-title { display: none; }
+    .nav-item { position: relative; }
+    .badge {
+      position: absolute; top: 2px; left: calc(50% + 6px);
+      min-width: 16px; height: 16px; padding: 0 4px; display: grid; place-items: center;
+      border-radius: var(--radius-full); font-size: 10px; font-weight: 600;
+      color: var(--primary-foreground); background: var(--warning-texto);
+    }
     .nav-item {
       display: flex;
       flex-direction: column;
@@ -105,11 +116,13 @@ interface NavItem {
         box-shadow: none;
       }
       .nav-item.is-activo svg { color: var(--primary); }
+      .badge { position: static; margin-left: auto; }
     }
     @media (min-width: 1024px) { :host-context(.dark) .nav-item.is-activo svg { color: var(--texto-activo); } }
   `,
 })
 export class SidebarComponent {
+  protected readonly pending = inject(InboxService).count;
   protected readonly items: NavItem[] = [
     { path: '/movimientos', label: 'Movimientos', icon: 'list', exact: true },
     { path: '/movimientos/nuevo', label: 'Registrar', icon: 'plus', exact: true },

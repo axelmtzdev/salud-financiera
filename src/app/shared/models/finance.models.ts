@@ -26,11 +26,39 @@ export interface UserProfile {
 
 export type CustomCategories = Record<MovementType, string[]>;
 
+/** Cargo recibido por registro rápido (p. ej. un atajo del iPhone), pendiente de confirmar. */
+export interface PendingMovement {
+  id: string;
+  type: MovementType;
+  amount: number;
+  /** Comercio tal como llegó */
+  merchant: string;
+  /** Tarjeta o cuenta, si se envió */
+  card: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** ISO timestamp de recepción */
+  receivedAt: string;
+}
+
+/** Categoría sugerida para un comercio. */
+export interface MerchantRule {
+  /** Texto normalizado (sin acentos ni mayúsculas) que debe contener el comercio */
+  pattern: string;
+  /** Texto tal como lo capturó el usuario */
+  label: string;
+  type: MovementType;
+  category: string;
+}
+
 export interface AppData {
   version: 1;
   user: UserProfile | null;
   movements: Movement[];
   categories: CustomCategories;
+  /** Bandeja de cargos por confirmar */
+  pending: PendingMovement[];
+  rules: MerchantRule[];
 }
 
 export interface DateRange {
@@ -75,5 +103,5 @@ export interface Insight {
 }
 
 export function createEmptyData(): AppData {
-  return { version: 1, user: null, movements: [], categories: { ingreso: [], egreso: [] } };
+  return { version: 1, user: null, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [] };
 }

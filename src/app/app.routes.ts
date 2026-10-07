@@ -15,6 +15,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login/login.component').then((m) => m.LoginComponent),
   },
   {
+    // Sin guard: la abre el atajo del iPhone y solo deja el cargo en la bandeja
+    path: 'registro-rapido',
+    title: 'Registro rápido · Salud Financiera',
+    loadComponent: () => import('./features/quick-add/quick-add.component').then((m) => m.QuickAddComponent),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     canActivateChild: [authGuard],

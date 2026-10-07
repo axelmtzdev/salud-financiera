@@ -21,7 +21,19 @@ Para ejecutar las pruebas una sola vez sin abrir el navegador: `npx ng test --wa
 | **Movimientos** | Resumen del mes, recomendación destacada, listado (más recientes primero) con filtros por tipo, categoría, rango de fechas y búsqueda por descripción. Ver detalle, editar y eliminar (con confirmación y opción **Deshacer**). |
 | **Registrar** | Ingreso/egreso con monto, categoría, fecha y descripción opcional. Categorías personalizadas (máx. 20 caracteres), validación y confirmación visual. "Guardar y agregar otro" para capturas en serie. |
 | **Análisis** | Selector de período (este mes, último mes, 3 y 6 meses, este año, personalizado). Totales, saldo neto y % de ahorro; recomendaciones automáticas; dona de egresos por categoría; barras ingresos vs egresos y línea de saldo neto (últimos 6 meses); tablas por categoría con top 3. |
-| **Ajustes** | Editar perfil/pregunta/respuesta, administrar categorías personalizadas, exportar CSV, respaldo y restauración JSON, datos de ejemplo, borrar movimientos o restablecer todo. |
+| **Ajustes** | Editar perfil/pregunta/respuesta, administrar categorías personalizadas, registro rápido desde iPhone, exportar CSV, respaldo y restauración JSON, datos de ejemplo, borrar movimientos o restablecer todo. |
+| **Registro rápido** | Un atajo del iPhone abre `/registro-rapido#monto=…&comercio=…&tarjeta=…` y el cargo queda en una bandeja para confirmarlo con su categoría. Las categorías se recuerdan por comercio. |
+
+## Registro rápido desde Atajos (iPhone)
+
+1. En **Atajos** → **Automatización** → **Nueva automatización** → **Cartera**: elige tus tarjetas y marca **Ejecutar inmediatamente**.
+2. Acción **Codificar URL** sobre el comercio de la entrada del atajo.
+3. Acción **URL** con `https://<tu-sitio>.netlify.app/registro-rapido#monto=[Importe]&comercio=[Comercio codificado]&tarjeta=[Tarjeta]`.
+4. Acción **Abrir URL**.
+
+Parámetros del fragmento: `monto` (obligatorio; acepta `$1,234.50`, `1.234,50`, etc.), `comercio`, `tarjeta`, `tipo` (`egreso` por defecto o `ingreso`) y `fecha` (`AAAA-MM-DD`, hoy por defecto). Van después de `#` para que nunca lleguen al servidor. Un mismo cargo repetido en menos de 2 minutos se ignora.
+
+Límites: la automatización de Cartera solo se dispara con pagos de **Apple Pay**, y el atajo debe abrir el **mismo navegador** donde usas la app (Safari y la app agregada a la pantalla de inicio tienen almacenamientos distintos). `public/_redirects` hace que Netlify sirva `index.html` en cualquier ruta, necesario para abrir `/registro-rapido` directamente.
 
 ## Decisiones de diseño
 

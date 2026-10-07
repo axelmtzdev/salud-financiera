@@ -121,11 +121,11 @@ export class FinanceService {
   }
 
   exportJson(): string {
-    const { movements, categories } = this.storage.state();
-    return JSON.stringify({ app: 'salud-financiera', exportedAt: new Date().toISOString(), movements, categories }, null, 2);
+    const { movements, categories, rules } = this.storage.state();
+    return JSON.stringify({ app: 'salud-financiera', exportedAt: new Date().toISOString(), movements, categories, rules }, null, 2);
   }
 
-  /** Reemplaza movimientos y categorías con un respaldo JSON. El usuario/credenciales actuales se conservan. */
+  /** Reemplaza movimientos, categorías y reglas con un respaldo JSON. El usuario y la bandeja actuales se conservan. */
   importJson(text: string): ImportResult {
     let parsed: unknown;
     try {
@@ -138,7 +138,13 @@ export class FinanceService {
     }
     const { data } = sanitizeAppData(parsed);
     const { kept } = purgeOldMovements(data.movements, RETENTION_YEARS);
-    const ok = this.storage.update((current: AppData) => ({ ...current, movements: kept, categories: data.categories }));
+    const hasRules = Array.isArray((parsed as Record<string, unknown>)['rules']);
+    const ok = this.storage.update((current: AppData) => ({
+      ...current,
+      movements: kept,
+      categories: data.categories,
+      rules: hasRules ? data.rules : current.rules,
+    }));
     return ok ? { ok: true, count: kept.length } : { ok: false, error: 'No hay espacio suficiente en el navegador.' };
   }
 

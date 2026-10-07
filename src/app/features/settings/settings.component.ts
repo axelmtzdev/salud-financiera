@@ -13,13 +13,14 @@ import { MOVEMENT_TYPES, MovementType } from '../../shared/models/finance.models
 import { todayIso } from '../../shared/utils/date.utils';
 import { downloadFile, movementsToCsv } from '../../shared/utils/file.utils';
 import { FinanceValidators } from '../../shared/validators/finance.validators';
+import { QuickAddSettingsComponent } from './quick-add-settings/quick-add-settings.component';
 
 /** Límite típico de localStorage por origen. */
 const STORAGE_QUOTA = 5 * 1024 * 1024;
 
 @Component({
   selector: 'app-settings',
-  imports: [ReactiveFormsModule, CardComponent, LucideDynamicIcon],
+  imports: [ReactiveFormsModule, CardComponent, LucideDynamicIcon, QuickAddSettingsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
