@@ -17,6 +17,7 @@ import {
 import { lastMonthKeys, monthKey, monthLabel, shiftMonthKey, todayIso } from './date.utils';
 import { formatCurrency, formatPercent, joinSpanish, round2 } from './format.utils';
 import { effectiveEnd, isInRange, monthsElapsed } from './period.utils';
+import { normalizeText } from './text.utils';
 
 /** Más recientes primero: por fecha y, a igual fecha, por momento de captura. */
 export function sortMovements(movements: readonly Movement[]): Movement[] {
@@ -27,6 +28,52 @@ export function sortMovements(movements: readonly Movement[]): Movement[] {
 
 export function filterByRange(movements: readonly Movement[], range: DateRange): Movement[] {
   return movements.filter((m) => isInRange(m.date, range));
+}
+
+export interface MovementQuery {
+  type?: MovementType;
+  /** Nombre de la categoría; se compara sin mayúsculas ni acentos */
+  category?: string;
+  /** YYYY-MM-DD, inclusive */
+  from?: string;
+  /** YYYY-MM-DD, inclusive */
+  to?: string;
+  /** Texto contenido en la descripción, sin mayúsculas ni acentos (igual que el buscador de Movimientos) */
+  text?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+export function queryMovements(movements: readonly Movement[], query: MovementQuery): Movement[] {
+  const category = normalizeText(query.category ?? '');
+  const text = normalizeText(query.text ?? '');
+  return movements.filter(
+    (m) =>
+      (!query.type || m.type === query.type) &&
+      (!category || normalizeText(m.category) === category) &&
+      (!query.from || m.date >= query.from) &&
+      (!query.to || m.date <= query.to) &&
+      (query.minAmount === undefined || m.amount >= query.minAmount) &&
+      (query.maxAmount === undefined || m.amount <= query.maxAmount) &&
+      (!text || normalizeText(m.description).includes(text)),
+  );
+}
+
+export type MovementOrder = 'recent' | 'oldest' | 'largest' | 'smallest';
+
+/** Ordena sin modificar el arreglo; a igual monto quedan primero los más recientes. */
+export function orderMovements(movements: readonly Movement[], order: MovementOrder): Movement[] {
+  const recent = sortMovements(movements);
+  switch (order) {
+    case 'recent':
+      return recent;
+    case 'oldest':
+      return recent.reverse();
+    case 'largest':
+      return recent.sort((a, b) => b.amount - a.amount);
+    case 'smallest':
+      return recent.sort((a, b) => a.amount - b.amount);
+  }
 }
 
 export function summarize(movements: readonly Movement[]): Summary {

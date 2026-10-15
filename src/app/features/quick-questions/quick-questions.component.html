@@ -1,0 +1,172 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Preguntas</span>
+      <h1 class="page-title">Pregúntale a tus finanzas</h1>
+      <p class="page-subtitle">Elige una pregunta y ajusta los detalles; la respuesta se calcula al momento con tus movimientos.</p>
+    </div>
+  </header>
+
+  @if (!hasMovements()) {
+    <app-card>
+      <div class="empty-state">
+        <span class="empty-state__icon"><svg lucideIcon="inbox" [size]="18" aria-hidden="true"></svg></span>
+        <h3>Aún no hay movimientos</h3>
+        <p>Registra algunos ingresos y egresos (o carga los datos de ejemplo en Ajustes) para empezar a hacer preguntas.</p>
+        <div class="empty-state__actions">
+          <a class="pc-boton boton-primario-elevado" routerLink="/movimientos/nuevo">
+            <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Registrar movimiento
+          </a>
+        </div>
+      </div>
+    </app-card>
+  } @else {
+    <div class="layout">
+      <div class="questions" role="radiogroup" aria-label="Preguntas sugeridas">
+        @for (q of questions; track q.id) {
+          <button
+            type="button"
+            role="radio"
+            class="question presionable"
+            [class.is-activo]="q.id === selectedId()"
+            [attr.aria-checked]="q.id === selectedId()"
+            (click)="select(q.id, $event)"
+          >
+            <span class="question__icon"><svg [lucideIcon]="q.icon" [size]="15" aria-hidden="true"></svg></span>
+            <span class="question__label">{{ q.label }}</span>
+          </button>
+        }
+      </div>
+
+      <app-card [title]="selected().label">
+        <div class="params">
+          @for (param of selected().params; track param) {
+            @switch (param) {
+              @case ('period') {
+                <div class="field field--wide">
+                  <span class="field-label" id="q-period">Período</span>
+                  <div class="segmented" role="radiogroup" aria-labelledby="q-period">
+                    @for (o of periodOptions; track o.value) {
+                      <button type="button" role="radio" [class.active]="preset() === o.value" [attr.aria-checked]="preset() === o.value" (click)="setPreset(o.value)">{{ o.label }}</button>
+                    }
+                  </div>
+                  @if (preset() === 'custom') {
+                    <div class="custom-range mov-entrar">
+                      <div class="field">
+                        <label class="field-label" for="q-from">Desde</label>
+                        <input id="q-from" class="input" type="date" [value]="range().from" (change)="setCustom('from', $any($event.target).value)" />
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="q-to">Hasta</label>
+                        <input id="q-to" class="input" type="date" [value]="range().to" (change)="setCustom('to', $any($event.target).value)" />
+                      </div>
+                    </div>
+                  }
+                  <span class="field-hint pc-num">{{ range().from | dateFormat: 'short' }} – {{ range().to | dateFormat: 'short' }}</span>
+                </div>
+              }
+              @case ('category') {
+                <div class="field">
+                  <label class="field-label" for="q-category">Categoría</label>
+                  <select id="q-category" class="input" (change)="setCategory($any($event.target).value)">
+                    @for (c of categoryOptions(); track c) {
+                      <option [value]="c" [selected]="c === category()">{{ c }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              @case ('month') {
+                <div class="field">
+                  <label class="field-label" for="q-month">Mes</label>
+                  <select id="q-month" class="input" (change)="month.set($any($event.target).value)">
+                    @for (m of monthOptions; track m.key) {
+                      <option [value]="m.key" [selected]="m.key === month()">{{ m.label }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              @case ('count') {
+                <div class="field field--auto">
+                  <span class="field-label" id="q-count">Cuántos</span>
+                  <div class="segmented" role="radiogroup" aria-labelledby="q-count">
+                    @for (n of countOptions; track n) {
+                      <button type="button" role="radio" [class.active]="count() === n" [attr.aria-checked]="count() === n" (click)="count.set(n)">{{ n }}</button>
+                    }
+                  </div>
+                </div>
+              }
+              @case ('text') {
+                <div class="field">
+                  <label class="field-label" for="q-text">Buscar en la descripción</label>
+                  <input id="q-text" class="input" type="search" placeholder="Uber, renta, súper…" [value]="text()" (input)="text.set($any($event.target).value)" />
+                </div>
+              }
+              @case ('months') {
+                <div class="field field--auto">
+                  <span class="field-label" id="q-months">Últimos</span>
+                  <div class="segmented" role="radiogroup" aria-labelledby="q-months">
+                    @for (n of monthsOptions; track n) {
+                      <button type="button" role="radio" [class.active]="months() === n" [attr.aria-checked]="months() === n" (click)="months.set(n)">{{ n }} meses</button>
+                    }
+                  </div>
+                </div>
+              }
+            }
+          }
+        </div>
+
+        <div class="answer" aria-live="polite">
+          <p class="answer__headline">{{ answer().headline }}</p>
+          @if (answer().detail) {
+            <p class="answer__detail">{{ answer().detail }}</p>
+          }
+
+          @if (answer().stats.length) {
+            <dl class="answer__stats">
+              @for (s of answer().stats; track s.label) {
+                <div class="stat">
+                  <dt class="stat__label">
+                    @if (s.tone !== 'neutral') {
+                      <span class="punto" [class.punto--income]="s.tone === 'income'" [class.punto--expense]="s.tone === 'expense'"></span>
+                    }
+                    <span class="etiqueta">{{ s.label }}</span>
+                  </dt>
+                  <dd class="stat__value pc-num" [class.text-expense]="s.negative">{{ s.value }}</dd>
+                  @if (s.hint) {
+                    <dd class="stat__hint pc-num">{{ s.hint }}</dd>
+                  }
+                </div>
+              }
+            </dl>
+          }
+
+          @if (answer().rows.length) {
+            @if (answer().rowsTitle) {
+              <span class="etiqueta rows-title">{{ answer().rowsTitle }}</span>
+            }
+            <ul class="rows">
+              @for (r of answer().rows; track $index) {
+                <li class="row">
+                  <span class="row__label">{{ r.label }}</span>
+                  <span class="row__value amount" [class.text-income]="r.tone === 'income'" [class.text-expense]="r.tone === 'expense'">{{ r.value }}</span>
+                  <span class="row__detail pc-num">{{ r.detail }}</span>
+                  @if (r.percent !== undefined) {
+                    <span class="row__bar" aria-hidden="true"><span [style.width.%]="r.percent"></span></span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+
+          @if (answer().link; as link) {
+            <div class="answer__actions">
+              <button type="button" class="pc-boton boton-elevado" (click)="openMovements(link)">
+                Ver estos movimientos <svg lucideIcon="arrow-right" [size]="14" aria-hidden="true"></svg>
+              </button>
+            </div>
+          }
+        </div>
+      </app-card>
+    </div>
+  }
+</div>

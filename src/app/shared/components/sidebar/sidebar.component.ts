@@ -41,7 +41,7 @@ interface NavItem {
       inset: auto 0 0 0;
       z-index: 30;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 4px;
       padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
       background: var(--surface-elevada);
@@ -127,6 +127,7 @@ export class SidebarComponent {
     { path: '/movimientos', label: 'Movimientos', icon: 'list', exact: true },
     { path: '/movimientos/nuevo', label: 'Registrar', icon: 'plus', exact: true },
     { path: '/analisis', label: 'Análisis', icon: 'chart-column', exact: false },
+    { path: '/preguntas', label: 'Preguntas', icon: 'message-circle-question-mark', exact: false },
     { path: '/ajustes', label: 'Ajustes', icon: 'settings', exact: false },
   ];
 }

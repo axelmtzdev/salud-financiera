@@ -58,6 +58,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/analytics/analytics.component').then((m) => m.AnalyticsComponent),
       },
       {
+        path: 'preguntas',
+        title: 'Preguntas · Salud Financiera',
+        loadComponent: () =>
+          import('./features/quick-questions/quick-questions.component').then((m) => m.QuickQuestionsComponent),
+      },
+      {
         path: 'ajustes',
         title: 'Ajustes · Salud Financiera',
         loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent),

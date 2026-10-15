@@ -1,3 +1,5 @@
+import { isValidIsoDate, parseIsoDate } from './date.utils';
+
 export const APP_LOCALE = 'es-MX';
 export const APP_CURRENCY = 'MXN';
 
@@ -35,4 +37,19 @@ export function round2(value: number): number {
 export function joinSpanish(items: readonly string[]): string {
   if (items.length <= 1) return items.join('');
   return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
+}
+
+export type DateFormatStyle = 'short' | 'medium' | 'long';
+
+const DATE_FORMATTERS: Record<DateFormatStyle, Intl.DateTimeFormat> = {
+  short: new Intl.DateTimeFormat(APP_LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+  medium: new Intl.DateTimeFormat(APP_LOCALE, { day: 'numeric', month: 'short', year: 'numeric' }),
+  long: new Intl.DateTimeFormat(APP_LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+};
+
+/** Formatea fechas YYYY-MM-DD (interpretadas en hora local) o timestamps ISO. */
+export function formatDate(value: string | null | undefined, style: DateFormatStyle = 'medium'): string {
+  if (!value) return '';
+  const date = isValidIsoDate(value) ? parseIsoDate(value) : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : DATE_FORMATTERS[style].format(date).replace('.', '');
 }
