@@ -67,3 +67,14 @@ export function monthLabel(key: string, long = false): string {
   const short = monthShort.format(date).replace('.', '');
   return `${short.charAt(0).toUpperCase()}${short.slice(1)} ${String(y).slice(2)}`;
 }
+
+/** Primer y último día (YYYY-MM-DD) del mes 'YYYY-MM'. */
+export function monthRange(key: string): { from: string; to: string } {
+  const [y, m] = key.split('-').map(Number);
+  return { from: `${key}-01`, to: toIsoDate(new Date(y, m, 0)) };
+}
+
+export function daysInMonth(key: string): number {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}

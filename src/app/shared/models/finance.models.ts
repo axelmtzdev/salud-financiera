@@ -59,6 +59,15 @@ export interface AppData {
   /** Bandeja de cargos por confirmar */
   pending: PendingMovement[];
   rules: MerchantRule[];
+  /** Tope mensual por categoría de egreso; el mismo monto aplica a cada mes */
+  budgets: Budget[];
+}
+
+export interface Budget {
+  /** Nombre exacto de la categoría de egreso */
+  category: string;
+  /** Tope mensual */
+  amount: number;
 }
 
 export interface DateRange {
@@ -103,5 +112,5 @@ export interface Insight {
 }
 
 export function createEmptyData(): AppData {
-  return { version: 1, user: null, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [] };
+  return { version: 1, user: null, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [] };
 }

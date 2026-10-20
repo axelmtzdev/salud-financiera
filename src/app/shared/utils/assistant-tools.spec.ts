@@ -43,7 +43,7 @@ const march = { desde: '2026-03-01', hasta: '2026-03-31' };
 
 describe('assistant-tools', () => {
   it('expone definiciones con esquema de objeto cerrado y obligatorios declarados', () => {
-    expect(ASSISTANT_TOOLS.length).toBe(7);
+    expect(ASSISTANT_TOOLS.length).toBe(8);
     for (const tool of ASSISTANT_TOOLS) {
       expect(tool.parameters.type).toBe('object');
       expect(tool.parameters.additionalProperties).toBeFalse();
@@ -181,6 +181,28 @@ describe('assistant-tools', () => {
     expect(result.ingreso).toContain('Salario');
     expect(result.ingreso).toContain('Rentas');
     expect(result.egreso).toContain('Mascotas');
+  });
+
+  it('estado_presupuesto reporta tope, gastado y nivel por categoría del mes pedido', () => {
+    const appData = withMovements(data.movements, {
+      budgets: [
+        { category: 'Alimentación', amount: 4000 },
+        { category: 'Transporte', amount: 2000 },
+      ],
+    });
+    const result = ok(run('estado_presupuesto', {}, appData));
+    expect(result.mes).toBe('2026-03');
+    expect(result.presupuestoTotal).toBe(6000);
+    expect(result.categorias[0]).toEqual(
+      jasmine.objectContaining({ categoria: 'Alimentación', gastado: 4500, disponible: -500, nivel: 'excedido' }),
+    );
+    expect(result.categorias[1].nivel).toBe('en_rango');
+    expect(result.sinPresupuesto).toEqual([{ categoria: 'Vivienda', gastado: 12000 }]);
+
+    const february = ok(run('estado_presupuesto', { fecha: '2026-02-14' }, appData));
+    expect(february.mes).toBe('2026-02');
+    expect(february.avanceDelMesPorcentaje).toBe(100);
+    expect(ok(run('estado_presupuesto', {})).tienePresupuestos).toBeFalse();
   });
 
   it('pendientes_por_confirmar resume la bandeja', () => {

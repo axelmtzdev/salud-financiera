@@ -6,6 +6,8 @@ import { InboxService } from '../../../core/services/inbox.service';
 interface NavItem {
   path: string;
   label: string;
+  /** Etiqueta para la barra inferior del teléfono, donde el espacio es corto */
+  short?: string;
   icon: string;
   exact: boolean;
 }
@@ -27,7 +29,8 @@ interface NavItem {
           ariaCurrentWhenActive="page"
         >
           <svg [lucideIcon]="item.icon" [size]="16" aria-hidden="true"></svg>
-          <span>{{ item.label }}</span>
+          <span class="label label--full">{{ item.label }}</span>
+          <span class="label label--short">{{ item.short ?? item.label }}</span>
           @if (item.path === '/movimientos' && pending() > 0) {
             <span class="badge pc-num" [attr.aria-label]="pending() + ' cargos por confirmar'">{{ pending() }}</span>
           }
@@ -41,8 +44,9 @@ interface NavItem {
       inset: auto 0 0 0;
       z-index: 30;
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 4px;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      gap: 2px;
       padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
       background: var(--surface-elevada);
       border-top: 1px solid var(--border-suave);
@@ -63,14 +67,16 @@ interface NavItem {
       justify-content: center;
       gap: 2px;
       min-height: 44px;
-      padding: 4px;
+      padding: 4px 2px;
       border-radius: var(--radius);
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 500;
       color: var(--texto-medio);
       text-decoration: none;
       transition: color var(--duracion-color), background-color var(--duracion-color);
     }
+    .label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .label--full { display: none; }
     .nav-item.is-activo {
       color: var(--texto-activo);
       font-weight: 600;
@@ -117,6 +123,8 @@ interface NavItem {
       }
       .nav-item.is-activo svg { color: var(--primary); }
       .badge { position: static; margin-left: auto; }
+      .label--full { display: inline; }
+      .label--short { display: none; }
     }
     @media (min-width: 1024px) { :host-context(.dark) .nav-item.is-activo svg { color: var(--texto-activo); } }
   `,
@@ -124,8 +132,9 @@ interface NavItem {
 export class SidebarComponent {
   protected readonly pending = inject(InboxService).count;
   protected readonly items: NavItem[] = [
-    { path: '/movimientos', label: 'Movimientos', icon: 'list', exact: true },
+    { path: '/movimientos', label: 'Movimientos', short: 'Inicio', icon: 'list', exact: true },
     { path: '/movimientos/nuevo', label: 'Registrar', icon: 'plus', exact: true },
+    { path: '/presupuestos', label: 'Presupuestos', short: 'Presup.', icon: 'target', exact: false },
     { path: '/analisis', label: 'Análisis', icon: 'chart-column', exact: false },
     { path: '/preguntas', label: 'Preguntas', icon: 'message-circle-question-mark', exact: false },
     { path: '/ajustes', label: 'Ajustes', icon: 'settings', exact: false },

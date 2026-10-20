@@ -12,10 +12,11 @@ import { resolvePeriod } from '../../shared/utils/period.utils';
 import { InsightsComponent } from '../analytics/insights/insights.component';
 import { MovementsListComponent } from './movements-list/movements-list.component';
 import { PendingInboxComponent } from './pending-inbox/pending-inbox.component';
+import { BudgetSummaryComponent } from '../budgets/budget-summary.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, LucideDynamicIcon, CardComponent, StatTileComponent, InsightsComponent, MovementsListComponent, PendingInboxComponent],
+  imports: [RouterLink, LucideDynamicIcon, CardComponent, StatTileComponent, InsightsComponent, MovementsListComponent, PendingInboxComponent, BudgetSummaryComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -40,6 +41,8 @@ import { PendingInboxComponent } from './pending-inbox/pending-inbox.component';
         <app-stat-tile label="Saldo neto" [value]="fmt(summary().net)" [negative]="summary().net < 0" hint="Ingresos − egresos" />
         <app-stat-tile label="Ahorro" [value]="savings()" hint="Saldo neto / ingresos" />
       </section>
+
+      <app-budget-summary />
 
       @if (insight(); as tip) {
         <div class="tip">

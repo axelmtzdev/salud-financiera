@@ -1,0 +1,201 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Presupuestos</span>
+      <h1 class="page-title">Tu plan de gastos</h1>
+      <p class="page-subtitle">Define cuánto quieres gastar al mes en cada categoría y revisa cómo vas antes de que se acabe el mes.</p>
+    </div>
+    @if (hasBudgets()) {
+      <div class="page-actions">
+        <label class="sr-only" for="budget-month">Mes</label>
+        <select id="budget-month" class="input month-select" [value]="month()" (change)="setMonth($any($event.target).value)">
+          @for (m of monthOptions; track m.key) {
+            <option [value]="m.key" [selected]="m.key === month()">{{ m.label }}</option>
+          }
+        </select>
+      </div>
+    }
+  </header>
+
+  @if (!hasBudgets()) {
+    <app-card>
+      <div class="empty-state intro">
+        <span class="empty-state__icon"><svg lucideIcon="target" [size]="20" [strokeWidth]="1.75" aria-hidden="true"></svg></span>
+        <h3>Aún no tienes presupuestos</h3>
+        <p>
+          Ponle un tope mensual a las categorías donde más gastas. La app te dirá cuánto te queda, si vas más rápido de lo
+          esperado y te avisará al registrar un egreso.
+        </p>
+        @if (suggestions().length) {
+          <div class="empty-state__actions">
+            <button type="button" class="pc-boton boton-primario-elevado" (click)="applySuggestions()">
+              <svg lucideIcon="sparkles" [size]="14" aria-hidden="true"></svg> Sugerir con mis últimos {{ suggestionMonths }} meses
+            </button>
+          </div>
+          <p class="nota">O agrega uno por uno abajo.</p>
+        }
+      </div>
+    </app-card>
+  } @else {
+    @let o = overview();
+    <section class="stats-grid" aria-label="Resumen del presupuesto">
+      <app-stat-tile label="Presupuesto del mes" [value]="fmt(o.totalLimit)" [hint]="o.lines.length + (o.lines.length === 1 ? ' categoría' : ' categorías')" />
+      <app-stat-tile label="Gastado" [value]="fmt(o.totalSpent)" tone="expense" [hint]="percent(o.totalLimit ? o.totalSpent / o.totalLimit : 0) + ' del presupuesto'" />
+      <app-stat-tile
+        [label]="o.totalRemaining < 0 ? 'Excedido' : 'Disponible'"
+        [value]="fmt(o.totalRemaining < 0 ? -o.totalRemaining : o.totalRemaining)"
+        [negative]="o.totalRemaining < 0"
+        [hint]="paceHint()"
+      />
+      <app-stat-tile
+        label="Fuera de presupuesto"
+        [value]="fmt(o.unbudgetedTotal)"
+        [hint]="o.unbudgeted.length ? o.unbudgeted.length + (o.unbudgeted.length === 1 ? ' categoría sin tope' : ' categorías sin tope') : 'Todo tu gasto tiene tope'"
+      />
+    </section>
+  }
+
+  <app-card title="Por categoría" [subtitle]="hasBudgets() ? 'Las más comprometidas primero' : 'Agrega tu primer presupuesto'" [flush]="true">
+    @if (hasBudgets() && suggestions().length) {
+      <button card-actions type="button" class="pc-boton pc-btn--ghost" (click)="applySuggestions()">
+        <svg lucideIcon="sparkles" [size]="14" aria-hidden="true"></svg> Sugerir los que faltan ({{ suggestions().length }})
+      </button>
+    }
+
+    @if (hasBudgets()) {
+      <ul class="lineas">
+        @for (line of overview().lines; track line.category) {
+          <li class="linea linea--{{ line.level }}">
+            <div class="linea__head">
+              <span class="linea__cat">
+                <span class="punto" [style.background]="finance.colorOf('egreso', line.category)"></span>{{ line.category }}
+              </span>
+              @if (editing() !== line.category) {
+                <span class="linea__montos pc-num">
+                  <strong>{{ line.spent | currencyFormat }}</strong> de {{ line.limit | currencyFormat }}
+                </span>
+                <span class="linea__acciones">
+                  <button type="button" class="icon-btn" (click)="startEdit(line)" title="Cambiar monto" [attr.aria-label]="'Cambiar presupuesto de ' + line.category">
+                    <svg lucideIcon="pencil" [size]="15" aria-hidden="true"></svg>
+                  </button>
+                  <button type="button" class="icon-btn icon-btn--danger" (click)="remove(line.category)" title="Eliminar" [attr.aria-label]="'Eliminar presupuesto de ' + line.category">
+                    <svg lucideIcon="trash-2" [size]="15" aria-hidden="true"></svg>
+                  </button>
+                </span>
+              }
+            </div>
+
+            @if (editing() === line.category) {
+              <div class="editar mov-entrar">
+                <div class="input-group">
+                  <span class="input-prefix">$</span>
+                  <input
+                    class="input pc-num"
+                    inputmode="decimal"
+                    [value]="editAmount()"
+                    (input)="editAmount.set($any($event.target).value)"
+                    (keydown.enter)="saveEdit(line.category)"
+                    (keydown.escape)="cancelEdit()"
+                    [attr.aria-label]="'Nuevo monto para ' + line.category"
+                  />
+                </div>
+                <button type="button" class="pc-boton boton-elevado" (click)="saveEdit(line.category)">Guardar</button>
+                <button type="button" class="pc-boton pc-btn--ghost" (click)="cancelEdit()">Cancelar</button>
+                @if (editError(); as message) {
+                  <span class="field-error">{{ message }}</span>
+                }
+              </div>
+            }
+
+            <div
+              class="barra"
+              role="progressbar"
+              [attr.aria-valuenow]="line.spent"
+              [attr.aria-valuemin]="0"
+              [attr.aria-valuemax]="line.limit"
+              [attr.aria-label]="'Gastado en ' + line.category"
+            >
+              <span class="barra__relleno" [style.width.%]="width(line)"></span>
+              @if (isCurrent() && overview().elapsed < 1) {
+                <span class="barra__ritmo" [style.left.%]="overview().elapsed * 100" title="Lo esperado a la fecha"></span>
+              }
+            </div>
+
+            <div class="linea__estado">
+              @switch (line.level) {
+                @case ('over') {
+                  <span class="pill pill--egreso"><span class="punto"></span>Excedido</span>
+                  <span class="text-expense">Te pasaste por {{ -line.remaining | currencyFormat }}</span>
+                }
+                @case ('warning') {
+                  <span class="pill pill--aviso"><span class="punto"></span>{{ percent(line.ratio) }}</span>
+                  <span>Quedan {{ line.remaining | currencyFormat }}</span>
+                }
+                @default {
+                  <span>Quedan {{ line.remaining | currencyFormat }} · {{ percent(line.ratio) }} usado</span>
+                }
+              }
+              @if (projectionWarning(line)) {
+                <span class="proyeccion">
+                  <svg lucideIcon="trending-up" [size]="12" aria-hidden="true"></svg>
+                  A este ritmo cerrarías en {{ line.projected! | currencyFormat }}
+                </span>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
+    <div class="alta">
+      <span class="field-label alta__titulo">Agregar presupuesto</span>
+      @if (freeCategories().length) {
+        <div class="alta__campos">
+          <label class="sr-only" for="budget-category">Categoría</label>
+          <select id="budget-category" class="input" [value]="newCategory()" (change)="newCategory.set($any($event.target).value); newError.set(null)">
+            <option value="">Elige categoría…</option>
+            @for (c of freeCategories(); track c) {
+              <option [value]="c" [selected]="c === newCategory()">{{ c }}</option>
+            }
+          </select>
+          <div class="input-group">
+            <span class="input-prefix">$</span>
+            <input
+              id="budget-amount"
+              class="input pc-num"
+              inputmode="decimal"
+              placeholder="Monto mensual"
+              [value]="newAmount()"
+              (input)="newAmount.set($any($event.target).value); newError.set(null)"
+              (keydown.enter)="add()"
+            />
+          </div>
+          <button type="button" class="pc-boton boton-elevado" (click)="add()">
+            <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar
+          </button>
+        </div>
+        @if (newError(); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      } @else {
+        <p class="field-hint">Todas tus categorías de egreso ya tienen presupuesto.</p>
+      }
+    </div>
+  </app-card>
+
+  @if (hasBudgets() && overview().unbudgeted.length) {
+    <app-card title="Gasto sin presupuesto" subtitle="Categorías con egresos este mes que no tienen tope">
+      <ul class="sin-tope">
+        @for (s of overview().unbudgeted; track s.category) {
+          <li>
+            <span class="linea__cat"><span class="punto" [style.background]="finance.colorOf('egreso', s.category)"></span>{{ s.category }}</span>
+            <span class="amount pc-num">{{ s.total | currencyFormat }}</span>
+            @if (freeCategories().includes(s.category)) {
+              <button type="button" class="pc-boton pc-btn--ghost" (click)="prefill(s.category, s.total)">Ponerle tope</button>
+            }
+          </li>
+        }
+      </ul>
+    </app-card>
+  }
+</div>

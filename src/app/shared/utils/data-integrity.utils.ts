@@ -1,6 +1,7 @@
 import { CATEGORY_MAX_LENGTH, DEFAULT_CATEGORIES, DESCRIPTION_MAX_LENGTH } from '../models/categories';
 import {
   AppData,
+  Budget,
   CustomCategories,
   MerchantRule,
   Movement,
@@ -55,9 +56,28 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
       categories: sanitizeCategories(raw['categories']),
       pending: sanitizeList(raw['pending'], sanitizePending).slice(-MAX_PENDING),
       rules: sanitizeList(raw['rules'], sanitizeRule),
+      budgets: sanitizeBudgets(raw['budgets']),
     },
     discarded,
   };
+}
+
+/** Un presupuesto por categoría (sin distinguir mayúsculas ni acentos); el primero gana. */
+export function sanitizeBudgets(raw: unknown): Budget[] {
+  const seen = new Set<string>();
+  const result: Budget[] = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
+    if (!isRecord(item)) continue;
+    const { category, amount } = item;
+    if (!nonEmptyString(category)) continue;
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) continue;
+    const name = collapseSpaces(category).slice(0, 40);
+    const key = normalizeText(name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ category: name, amount: round2(amount) });
+  }
+  return result;
 }
 
 export const MAX_PENDING = 200;

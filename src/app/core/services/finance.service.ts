@@ -4,6 +4,7 @@ import {
   DEFAULT_CATEGORIES,
   OTHER_CATEGORY_COLOR,
   RETENTION_YEARS,
+  availableCategories,
 } from '../../shared/models/categories';
 import { AppData, Movement, MovementInput, MovementType } from '../../shared/models/finance.models';
 import { categoryColorMap, sortMovements } from '../../shared/utils/analytics.utils';
@@ -35,13 +36,7 @@ export class FinanceService {
   });
 
   /** Categorías disponibles para filtrar: incluye las usadas por movimientos aunque ya se hayan borrado. */
-  readonly filterableCategories = computed<Record<MovementType, string[]>>(() => {
-    const result = { ingreso: [...this.categories().ingreso], egreso: [...this.categories().egreso] };
-    for (const m of this.movements()) {
-      if (!result[m.type].includes(m.category)) result[m.type].push(m.category);
-    }
-    return result;
-  });
+  readonly filterableCategories = computed(() => availableCategories(this.customCategories(), this.movements()));
 
   /** Color estable por categoría (ver `categoryColorMap`). */
   readonly categoryColors = computed(() => categoryColorMap(this.movements()));
@@ -121,11 +116,18 @@ export class FinanceService {
   }
 
   exportJson(): string {
-    const { movements, categories, rules } = this.storage.state();
-    return JSON.stringify({ app: 'salud-financiera', exportedAt: new Date().toISOString(), movements, categories, rules }, null, 2);
+    const { movements, categories, rules, budgets } = this.storage.state();
+    return JSON.stringify(
+      { app: 'salud-financiera', exportedAt: new Date().toISOString(), movements, categories, rules, budgets },
+      null,
+      2,
+    );
   }
 
-  /** Reemplaza movimientos, categorías y reglas con un respaldo JSON. El usuario y la bandeja actuales se conservan. */
+  /**
+   * Reemplaza movimientos, categorías, reglas y presupuestos con un respaldo JSON.
+   * El usuario y la bandeja actuales se conservan; reglas y presupuestos solo si el respaldo no los trae.
+   */
   importJson(text: string): ImportResult {
     let parsed: unknown;
     try {
@@ -138,12 +140,13 @@ export class FinanceService {
     }
     const { data } = sanitizeAppData(parsed);
     const { kept } = purgeOldMovements(data.movements, RETENTION_YEARS);
-    const hasRules = Array.isArray((parsed as Record<string, unknown>)['rules']);
+    const has = (key: string) => Array.isArray((parsed as Record<string, unknown>)[key]);
     const ok = this.storage.update((current: AppData) => ({
       ...current,
       movements: kept,
       categories: data.categories,
-      rules: hasRules ? data.rules : current.rules,
+      rules: has('rules') ? data.rules : current.rules,
+      budgets: has('budgets') ? data.budgets : current.budgets,
     }));
     return ok ? { ok: true, count: kept.length } : { ok: false, error: 'No hay espacio suficiente en el navegador.' };
   }

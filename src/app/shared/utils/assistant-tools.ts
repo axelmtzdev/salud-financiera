@@ -1,4 +1,4 @@
-import { DEFAULT_CATEGORIES } from '../models/categories';
+import { availableCategories } from '../models/categories';
 import { AppData, DateRange, InsightLevel, MOVEMENT_TYPES, MovementType } from '../models/finance.models';
 import {
   MovementOrder,
@@ -10,7 +10,8 @@ import {
   queryMovements,
   summarize,
 } from './analytics.utils';
-import { isValidIsoDate, monthLabel, todayIso } from './date.utils';
+import { budgetOverview } from './budget.utils';
+import { isValidIsoDate, monthKey, monthLabel, todayIso } from './date.utils';
 import { APP_CURRENCY, round2 } from './format.utils';
 
 /**
@@ -78,6 +79,8 @@ const INSIGHT_LEVEL_LABEL: Record<InsightLevel, string> = {
   info: 'informativo',
   success: 'positivo',
 };
+
+const BUDGET_LEVEL_LABEL = { ok: 'en_rango', warning: 'cerca_del_limite', over: 'excedido' } as const;
 
 const SEARCH_ORDER = {
   recientes: 'recent',
@@ -239,15 +242,40 @@ const TOOLS: readonly ToolSpec[] = [
       'Categorías disponibles por tipo: predefinidas, personalizadas y las que aún usan movimientos antiguos. ' +
       'Úsala para usar el nombre exacto de una categoría en otras herramientas.',
     parameters: params({}),
-    run: (_args, { data }) => {
-      const result: Record<MovementType, string[]> = {
-        ingreso: [...DEFAULT_CATEGORIES.ingreso, ...data.categories.ingreso],
-        egreso: [...DEFAULT_CATEGORIES.egreso, ...data.categories.egreso],
+    run: (_args, { data }) => availableCategories(data.categories, data.movements),
+  },
+  {
+    name: 'estado_presupuesto',
+    description:
+      'Presupuesto mensual por categoría de egreso: tope, gastado, disponible y nivel (en_rango, cerca_del_limite, ' +
+      'excedido), más el gasto en categorías sin presupuesto. En el mes en curso incluye cuánto del mes ha pasado y ' +
+      'una proyección al cierre. Úsala para "¿cómo voy con mi presupuesto?" o "¿en qué me estoy pasando?".',
+    parameters: params({
+      fecha: date('Cualquier día del mes a revisar (YYYY-MM-DD). Por defecto, hoy.'),
+    }),
+    run: (args, { data, today }) => {
+      const month = monthKey((args['fecha'] as string | undefined) ?? today);
+      const o = budgetOverview(data.budgets, data.movements, month, today);
+      return {
+        mes: month,
+        etiqueta: monthLabel(month, true),
+        moneda: APP_CURRENCY,
+        tienePresupuestos: data.budgets.length > 0,
+        presupuestoTotal: o.totalLimit,
+        gastadoTotal: o.totalSpent,
+        disponibleTotal: o.totalRemaining,
+        avanceDelMesPorcentaje: round1(o.elapsed * 100),
+        categorias: o.lines.map((l) => ({
+          categoria: l.category,
+          tope: l.limit,
+          gastado: l.spent,
+          disponible: l.remaining,
+          usadoPorcentaje: round1(l.ratio * 100),
+          nivel: BUDGET_LEVEL_LABEL[l.level],
+          proyeccionAlCierre: l.projected,
+        })),
+        sinPresupuesto: o.unbudgeted.map((s) => ({ categoria: s.category, gastado: s.total })),
       };
-      for (const m of data.movements) {
-        if (!result[m.type].includes(m.category)) result[m.type].push(m.category);
-      }
-      return result;
     },
   },
   {

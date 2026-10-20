@@ -1,6 +1,7 @@
-import { DateRange, Movement, MovementType } from '../models/finance.models';
+import { Budget, DateRange, Movement, MovementType } from '../models/finance.models';
 import { byCategory, filterByRange, monthlySeries, orderMovements, queryMovements, summarize } from './analytics.utils';
-import { monthKey, monthLabel, parseIsoDate, shiftMonthKey, toIsoDate, todayIso } from './date.utils';
+import { budgetOverview } from './budget.utils';
+import { monthKey, monthLabel, monthRange, parseIsoDate, shiftMonthKey, todayIso } from './date.utils';
 import { formatCurrency, formatDate, formatPercent } from './format.utils';
 import { collapseSpaces } from './text.utils';
 
@@ -16,7 +17,8 @@ export type QuestionId =
   | 'month-comparison'
   | 'largest-expenses'
   | 'search'
-  | 'trend';
+  | 'trend'
+  | 'budget';
 
 /** Datos que pide cada pregunta, en el orden en que se muestran. */
 export type QuestionParam = 'period' | 'category' | 'month' | 'count' | 'text' | 'months';
@@ -37,6 +39,7 @@ export const QUICK_QUESTIONS: readonly QuickQuestion[] = [
   { id: 'largest-expenses', label: '¿Cuáles fueron mis gastos más grandes?', icon: 'arrow-down-wide-narrow', params: ['count', 'period'] },
   { id: 'search', label: '¿Cuánto llevo en algo específico?', icon: 'search', params: ['text', 'period'] },
   { id: 'trend', label: '¿Cómo ha cambiado mi saldo?', icon: 'trending-up', params: ['months'] },
+  { id: 'budget', label: '¿Cómo voy con mi presupuesto?', icon: 'target', params: ['month'] },
 ];
 
 export const COUNT_OPTIONS: readonly number[] = [5, 10, 20];
@@ -100,6 +103,7 @@ export function answerQuestion(
   inputs: QuestionInputs,
   movements: readonly Movement[],
   today = todayIso(),
+  budgets: readonly Budget[] = [],
 ): QuickAnswer {
   switch (id) {
     case 'summary':
@@ -116,6 +120,8 @@ export function answerQuestion(
       return searchAnswer(movements, inputs.text, inputs.range);
     case 'trend':
       return trendAnswer(movements, inputs.months, today);
+    case 'budget':
+      return budgetAnswer(movements, budgets, inputs.month, today);
   }
 }
 
@@ -212,7 +218,11 @@ function monthComparisonAnswer(movements: readonly Movement[], month: string, to
 
   const diff = a.expense - b.expense;
   let headline: string;
-  if (b.expense === 0) headline = `En ${previousLabel} no registraste egresos; en ${currentLabel} llevas ${money(a.expense)}.`;
+  if (b.expense === 0) {
+    headline =
+      `En ${previousLabel} no registraste egresos; en ${currentLabel} ` +
+      `${inProgress ? 'llevas' : 'gastaste'} ${money(a.expense)}.`;
+  }
   else if (diff === 0) headline = `Gastaste lo mismo que en ${previousLabel}: ${money(a.expense)}.`;
   else {
     headline =
@@ -261,7 +271,7 @@ function largestExpensesAnswer(movements: readonly Movement[], count: number, ra
   const what = first.description ? `“${first.description}”` : `en ${first.category}`;
   const sum = summarize(top).expense;
   return {
-    headline: `Tu gasto más grande fue ${what}: ${money(first.amount)}, el ${formatDate(first.date)}.`,
+    headline: `Tu gasto más grande fue ${what}: ${money(first.amount)}, el ${formatDate(first.date, 'short')}.`,
     detail:
       top.length > 1
         ? `Tus ${top.length} gastos más grandes suman ${money(sum)}, el ${formatPercent(sum / summarize(expenses).expense)} de lo que gastaste.`
@@ -319,6 +329,15 @@ function trendAnswer(movements: readonly Movement[], months: number, today: stri
     );
   }
   if (closed.length) details.push(`El promedio no incluye ${monthLabel(series[series.length - 1].key, true)} porque sigue en curso.`);
+  // Un mes cerrado sin movimientos se toma como "no registrado", no como gasto cero; se dice para que el promedio no confunda
+  const skipped = series.length - 1 - closed.length;
+  if (closed.length && skipped > 0) {
+    details.push(
+      skipped === 1
+        ? 'Tampoco cuenta 1 mes sin movimientos registrados.'
+        : `Tampoco cuentan ${skipped} meses sin movimientos registrados.`,
+    );
+  }
 
   return {
     headline:
@@ -340,11 +359,72 @@ function trendAnswer(movements: readonly Movement[], months: number, today: stri
   };
 }
 
+function budgetAnswer(
+  movements: readonly Movement[],
+  budgets: readonly Budget[],
+  month: string,
+  today: string,
+): QuickAnswer {
+  if (!budgets.length) return empty('Aún no tienes presupuestos. Defínelos en la sección Presupuestos para ver cómo vas.');
+
+  const o = budgetOverview(budgets, movements, month, today);
+  const label = monthLabel(month, true);
+  const over = o.lines.filter((l) => l.level === 'over');
+  const warning = o.lines.filter((l) => l.level === 'warning');
+  const inProgress = o.day !== null;
+
+  let headline: string;
+  if (o.totalRemaining < 0) headline = `Excediste tu presupuesto total de ${label} por ${money(-o.totalRemaining)}.`;
+  else if (over.length) {
+    headline =
+      `Vas dentro del total, pero te pasaste en ${plural(over.length, 'categoría', 'categorías')}: ` +
+      `${over.map((l) => l.category).join(', ')}.`;
+  } else {
+    headline =
+      `${inProgress ? 'Llevas' : 'Gastaste'} ${money(o.totalSpent)} de ${money(o.totalLimit)}` +
+      `${inProgress ? `: te quedan ${money(o.totalRemaining)}` : ' y te sobraron ' + money(o.totalRemaining)}.`;
+  }
+
+  const details: string[] = [];
+  if (inProgress) {
+    details.push(
+      `Va el ${formatPercent(o.elapsed)} del mes y llevas el ${formatPercent(o.totalLimit ? o.totalSpent / o.totalLimit : 0)} del presupuesto.`,
+    );
+  }
+  if (warning.length) details.push(`Cerca del límite: ${warning.map((l) => l.category).join(', ')}.`);
+  if (o.unbudgetedTotal > 0) details.push(`Además gastaste ${money(o.unbudgetedTotal)} en categorías sin presupuesto.`);
+
+  const range = monthRange(month);
+  return {
+    headline,
+    detail: details.join(' ') || undefined,
+    stats: [
+      { label: 'Presupuesto', value: money(o.totalLimit), tone: 'neutral' },
+      { label: 'Gastado', value: money(o.totalSpent), tone: 'expense' },
+      {
+        label: o.totalRemaining < 0 ? 'Excedido' : 'Disponible',
+        value: money(Math.abs(o.totalRemaining)),
+        tone: 'neutral',
+        negative: o.totalRemaining < 0,
+      },
+    ],
+    rowsTitle: 'Por categoría',
+    rows: o.lines.map((l) => ({
+      label: l.category,
+      detail: `${money(l.spent)} de ${money(l.limit)}`,
+      value: l.remaining < 0 ? `−${money(-l.remaining)}` : `Quedan ${money(l.remaining)}`,
+      tone: l.level === 'over' ? 'expense' : 'neutral',
+      percent: Math.min(l.ratio, 1) * 100,
+    })),
+    link: { type: 'egreso', from: range.from, to: range.to },
+  };
+}
+
 function movementRow(m: Movement, showCategory = true): AnswerRow {
   const label = m.description || m.category;
   return {
     label,
-    detail: showCategory && m.description ? `${formatDate(m.date)} · ${m.category}` : formatDate(m.date),
+    detail: showCategory && m.description ? `${formatDate(m.date, 'short')} · ${m.category}` : formatDate(m.date, 'short'),
     value: `${m.type === 'ingreso' ? '+' : '−'}${money(m.amount)}`,
     tone: m.type === 'ingreso' ? 'income' : 'expense',
   };
@@ -352,11 +432,6 @@ function movementRow(m: Movement, showCategory = true): AnswerRow {
 
 function categoryTotals(movements: readonly Movement[]): Map<string, number> {
   return new Map(byCategory(movements, 'egreso').map((s) => [s.category, s.total]));
-}
-
-function monthRange(key: string): DateRange {
-  const [y, m] = key.split('-').map(Number);
-  return { from: `${key}-01`, to: toIsoDate(new Date(y, m, 0)) };
 }
 
 function empty(headline: string): QuickAnswer {

@@ -1,0 +1,154 @@
+:host { display: block; }
+
+.month-select { width: auto; min-width: 180px; }
+
+.intro { border: 0; margin: 0; padding: 12px 8px; }
+.nota { margin-top: 10px !important; font-size: 11px !important; color: var(--texto-tenue) !important; }
+
+/* ---------- Renglones por categoría ---------- */
+
+.lineas { list-style: none; margin: 0; padding: 0; }
+
+.linea {
+  --tono: var(--primary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--divisor-tenue);
+}
+
+@media (min-width: 640px) { .linea { padding: 14px 24px; } }
+
+.linea--warning { --tono: var(--warning); }
+.linea--over { --tono: var(--danger); }
+
+.linea__head { display: flex; align-items: center; gap: 12px; min-height: 32px; }
+
+.linea__cat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linea__montos { font-size: 12px; color: var(--texto-tenue); white-space: nowrap; }
+.linea__montos strong { font-size: 13px; color: var(--foreground); }
+.linea__acciones { display: flex; gap: 2px; margin-right: -6px; }
+
+/* Teléfono: los montos bajan a su propio renglón para que el nombre de la categoría quepa completo */
+@media (max-width: 519px) {
+  .linea__head { flex-wrap: wrap; row-gap: 0; }
+  .linea__montos { order: 3; flex-basis: 100%; }
+}
+
+.barra {
+  position: relative;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: var(--sombra-campo-reposo);
+}
+
+.barra__relleno {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--tono);
+  transition: width 0.5s var(--ease-entrada);
+}
+
+/* Marca de lo esperado a la fecha: si la barra la rebasa, vas más rápido que el mes */
+.barra__ritmo {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--foreground);
+  opacity: 0.45;
+}
+
+.linea__estado {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--texto-medio);
+}
+
+.pill--aviso {
+  background: var(--warning-suave);
+  color: var(--warning-texto);
+  border-color: color-mix(in oklab, var(--warning) 25%, transparent);
+}
+.pill--aviso .punto { background: var(--warning); }
+
+.proyeccion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--warning-texto);
+}
+
+.editar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .input-group { flex: 1 1 140px; max-width: 220px; }
+  .field-error { flex-basis: 100%; }
+}
+
+/* ---------- Alta ---------- */
+
+.alta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--pie-tarjeta);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+
+@media (min-width: 640px) { .alta { padding: 16px 24px; } }
+
+.alta__campos {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+@media (max-width: 519px) {
+  .alta__campos { grid-template-columns: 1fr 1fr; }
+  .alta__campos .pc-boton { grid-column: 1 / -1; height: 40px; }
+}
+
+/* ---------- Sin presupuesto ---------- */
+
+.sin-tope {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--divisor-tenue);
+  }
+  li:last-child { border-bottom: 0; }
+  .linea__cat { font-weight: 500; }
+}

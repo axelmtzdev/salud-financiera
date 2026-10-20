@@ -3,6 +3,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
+import { BudgetService } from '../../../core/services/budget.service';
 import { FinanceService } from '../../../core/services/finance.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { CardComponent } from '../../../shared/components/card/card.component';
@@ -32,6 +33,7 @@ export class MovementFormComponent implements OnInit {
   readonly id = input<string>();
 
   private readonly finance = inject(FinanceService);
+  private readonly budgets = inject(BudgetService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
 
@@ -179,7 +181,7 @@ export class MovementFormComponent implements OnInit {
         this.toast.error('No se pudo actualizar el movimiento.');
         return;
       }
-      this.toast.success(`${label} actualizado`);
+      this.notifySaved(`${label} actualizado`, input);
       this.router.navigate(['/movimientos', id]);
       return;
     }
@@ -188,7 +190,7 @@ export class MovementFormComponent implements OnInit {
       this.toast.error('No se pudo guardar: el almacenamiento del navegador está lleno o bloqueado.');
       return;
     }
-    this.toast.success(`${label} registrado`);
+    this.notifySaved(`${label} registrado`, input);
 
     if (addAnother) {
       // Conserva tipo, categoría y fecha para capturas en serie
@@ -198,5 +200,15 @@ export class MovementFormComponent implements OnInit {
     } else {
       this.router.navigate(['/movimientos']);
     }
+  }
+
+  /** Confirma el guardado y, si es un egreso con presupuesto, dice cuánto queda en esa categoría. */
+  private notifySaved(message: string, input: MovementInput): void {
+    const note = input.type === 'egreso' ? this.budgets.noteFor(input.category, input.date) : null;
+    if (!note) {
+      this.toast.success(message);
+      return;
+    }
+    this.toast.show(`${message}. ${note.text}`, note.alert ? 'warning' : 'success', { duration: note.alert ? 6000 : 4500 });
   }
 }

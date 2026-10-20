@@ -1,5 +1,5 @@
 import { Movement, MovementType } from '../models/finance.models';
-import { formatCurrency, formatDate } from './format.utils';
+import { formatCurrency } from './format.utils';
 import { QUICK_QUESTIONS, QuestionId, QuestionInputs, answerQuestion } from './quick-questions';
 
 let seq = 0;
@@ -99,6 +99,15 @@ describe('quick-questions', () => {
       expect(answer.link).toEqual({ from: '2026-03-01', to: TODAY });
     });
 
+    it('sin egresos en el mes anterior usa "llevas" solo para el mes en curso', () => {
+      const data = [mv('egreso', 'Vivienda', 500, '2026-02-03'), mv('egreso', 'Vivienda', 700, '2026-03-03')];
+      expect(ask('month-comparison', { month: '2026-02' }, data).headline).toBe(
+        `En enero de 2026 no registraste egresos; en febrero de 2026 gastaste ${money(500)}.`,
+      );
+      const inProgress = ask('month-comparison', { month: '2026-03' }, [mv('egreso', 'Vivienda', 700, '2026-03-03')]);
+      expect(inProgress.headline).toContain(`en marzo de 2026 llevas ${money(700)}`);
+    });
+
     it('compara meses cerrados completos', () => {
       const answer = ask('month-comparison', { month: '2026-02' });
       expect(answer.headline).toContain(`${money(4000)} más que en enero`);
@@ -108,7 +117,8 @@ describe('quick-questions', () => {
 
   it('largest-expenses lista los N egresos más grandes', () => {
     const answer = ask('largest-expenses', { count: 2 });
-    expect(answer.headline).toBe(`Tu gasto más grande fue “Renta”: ${money(12000)}, el ${formatDate('2026-03-02')}.`);
+    expect(answer.headline).toBe(`Tu gasto más grande fue “Renta”: ${money(12000)}, el 02/03/2026.`);
+    expect(answer.rows[0].detail).toBe('02/03/2026 · Vivienda');
     expect(answer.rows.map((r) => r.value)).toEqual([`−${money(12000)}`, `−${money(4500)}`]);
     expect(answer.detail).toContain(money(16500));
   });
@@ -132,5 +142,42 @@ describe('quick-questions', () => {
     expect(answer.detail).toContain('enero de 2026');
     expect(answer.detail).toContain('no incluye marzo');
     expect(answer.rows.map((r) => r.label)).toEqual(['Marzo de 2026', 'Febrero de 2026', 'Enero de 2026']);
+    expect(answer.detail).not.toContain('sin movimientos');
+  });
+
+  it('trend avisa cuántos meses cerrados sin movimientos quedaron fuera del promedio', () => {
+    // 6 meses: oct-mar; con datos solo enero y febrero (cerrados) y marzo (en curso)
+    const answer = ask('trend', { months: 6 });
+    expect(answer.headline).toContain(`gastas ${money(14000)} al mes`);
+    expect(answer.detail).toContain('Tampoco cuentan 3 meses sin movimientos registrados.');
+  });
+
+  describe('budget', () => {
+    const budgets = [
+      { category: 'Alimentación', amount: 4000 },
+      { category: 'Transporte', amount: 2000 },
+    ];
+    const askBudget = (month: string, list = budgets) =>
+      answerQuestion('budget', { ...defaults, month }, movements, TODAY, list);
+
+    it('en el mes en curso señala las categorías excedidas y el gasto sin presupuesto', () => {
+      const answer = askBudget('2026-03');
+      expect(answer.headline).toBe('Vas dentro del total, pero te pasaste en 1 categoría: Alimentación.');
+      expect(answer.detail).toContain(`Además gastaste ${money(14000)} en categorías sin presupuesto.`);
+      expect(answer.rows.map((r) => [r.label, r.value])).toEqual([
+        ['Alimentación', `−${money(500)}`],
+        ['Transporte', `Quedan ${money(850)}`],
+      ]);
+    });
+
+    it('en un mes cerrado habla en pasado y avisa lo que quedó cerca del límite', () => {
+      const answer = askBudget('2026-02');
+      expect(answer.headline).toBe(`Gastaste ${money(4000)} de ${money(6000)} y te sobraron ${money(2000)}.`);
+      expect(answer.detail).toContain('Cerca del límite: Alimentación.');
+    });
+
+    it('sin presupuestos invita a crearlos', () => {
+      expect(askBudget('2026-03', []).headline).toContain('Aún no tienes presupuestos');
+    });
   });
 });

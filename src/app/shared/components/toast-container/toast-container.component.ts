@@ -2,7 +2,12 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { Toast, ToastService } from '../../../core/services/toast.service';
 
-const ICON_BY_TYPE: Record<Toast['type'], string> = { success: 'circle-check', error: 'triangle-alert', info: 'info' };
+const ICON_BY_TYPE: Record<Toast['type'], string> = {
+  success: 'circle-check',
+  error: 'triangle-alert',
+  info: 'info',
+  warning: 'triangle-alert',
+};
 
 /** Avisos flotantes: superficie elevada con ícono del estado; el texto dice qué pasó. */
 @Component({
@@ -57,6 +62,7 @@ const ICON_BY_TYPE: Record<Toast['type'], string> = { success: 'circle-check', e
     }
     .toast--success { --tono: var(--success); }
     .toast--error { --tono: var(--danger); }
+    .toast--warning { --tono: var(--warning-texto); }
     .toast__icon {
       display: grid;
       place-items: center;

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { LucideDynamicIcon } from '@lucide/angular';
+import { BudgetService } from '../../../core/services/budget.service';
 import { FinanceService } from '../../../core/services/finance.service';
 import { InboxService } from '../../../core/services/inbox.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -129,6 +130,7 @@ import { formatCurrency } from '../../../shared/utils/format.utils';
 export class PendingInboxComponent {
   protected readonly finance = inject(FinanceService);
   private readonly inbox = inject(InboxService);
+  private readonly budgets = inject(BudgetService);
   private readonly toast = inject(ToastService);
 
   protected readonly items = this.inbox.pending;
@@ -158,7 +160,10 @@ export class PendingInboxComponent {
     const category = this.categoryOf(item);
     if (!category) return;
     if (this.inbox.confirm(item.id, category, this.rememberOf(item.id))) {
-      this.toast.success(`${formatCurrency(item.amount)} registrado en ${category}`);
+      const message = `${formatCurrency(item.amount)} registrado en ${category}`;
+      const note = item.type === 'egreso' ? this.budgets.noteFor(category, item.date) : null;
+      if (note) this.toast.show(`${message}. ${note.text}`, note.alert ? 'warning' : 'success', { duration: note.alert ? 6000 : 4500 });
+      else this.toast.success(message);
     } else {
       this.toast.error('No se pudo registrar el cargo.');
     }

@@ -1,4 +1,4 @@
-import { MovementType } from './finance.models';
+import { CustomCategories, Movement, MovementType } from './finance.models';
 
 export const CATEGORY_MAX_LENGTH = 20;
 export const DESCRIPTION_MAX_LENGTH = 120;
@@ -48,3 +48,21 @@ export const MOVEMENT_TYPE_LABEL: Readonly<Record<MovementType, string>> = {
 export const CATEGORICAL_PALETTE: readonly string[] = Array.from({ length: 7 }, (_, i) => `var(--serie-${i + 1})`);
 export const OTHER_CATEGORY_COLOR = 'var(--otras-relleno)';
 export const OTHER_CATEGORY_LABEL = 'Otras';
+
+/**
+ * Predefinidas + personalizadas + las que todavía usan movimientos aunque ya se hayan borrado.
+ * La comparten los filtros de la app y las herramientas del asistente.
+ */
+export function availableCategories(
+  custom: CustomCategories,
+  movements: readonly Movement[],
+): Record<MovementType, string[]> {
+  const result: Record<MovementType, string[]> = {
+    ingreso: [...DEFAULT_CATEGORIES.ingreso, ...custom.ingreso],
+    egreso: [...DEFAULT_CATEGORIES.egreso, ...custom.egreso],
+  };
+  for (const m of movements) {
+    if (!result[m.type].includes(m.category)) result[m.type].push(m.category);
+  }
+  return result;
+}
