@@ -710,3 +710,8 @@ select.input {
 }
 
 .dark .empty-state { border-color: rgb(255 255 255 / 0.1); }
+
+/* Acciones que en teléfono ya cubre el botón central de la barra inferior */
+@media (max-width: 1023px) {
+  .solo-escritorio { display: none !important; }
+}

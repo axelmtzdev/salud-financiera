@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { HeaderComponent } from '../../shared/components/header/header.component';
+import { BottomNavComponent } from '../../shared/components/bottom-nav/bottom-nav.component';
 import { SidebarComponent } from '../../shared/components/sidebar/sidebar.component';
 import { AuthService } from '../services/auth.service';
 import { StorageService } from '../services/storage.service';
@@ -9,7 +10,7 @@ import { ToastService } from '../services/toast.service';
 /** Layout de la zona privada: header + navegación + contenido. */
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, HeaderComponent, SidebarComponent],
+  imports: [RouterOutlet, HeaderComponent, SidebarComponent, BottomNavComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-header [userName]="auth.userName()" (logout)="logout()" />
@@ -19,6 +20,7 @@ import { ToastService } from '../services/toast.service';
         <router-outlet />
       </main>
     </div>
+    <app-bottom-nav />
   `,
   styles: `
     :host { display: block; min-height: 100dvh; }

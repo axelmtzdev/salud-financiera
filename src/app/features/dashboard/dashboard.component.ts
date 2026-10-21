@@ -26,7 +26,7 @@ import { BudgetSummaryComponent } from '../budgets/budget-summary.component';
           <h1 class="page-title">Hola, {{ auth.userName() }}</h1>
           <p class="page-subtitle">Así va tu mes. Registra cada ingreso y egreso para que el análisis sea preciso.</p>
         </div>
-        <div class="page-actions">
+        <div class="page-actions solo-escritorio">
           <a class="pc-boton boton-primario-elevado" routerLink="/movimientos/nuevo">
             <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Nuevo movimiento
           </a>
