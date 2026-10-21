@@ -58,6 +58,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/budgets/budgets.component').then((m) => m.BudgetsComponent),
       },
       {
+        path: 'pagos',
+        title: 'Pagos recurrentes · Salud Financiera',
+        loadComponent: () => import('./features/recurring/recurring.component').then((m) => m.RecurringComponent),
+      },
+      {
         path: 'analisis',
         title: 'Análisis · Salud Financiera',
         loadComponent: () => import('./features/analytics/analytics.component').then((m) => m.AnalyticsComponent),

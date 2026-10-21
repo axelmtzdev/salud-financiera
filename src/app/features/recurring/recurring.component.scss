@@ -1,0 +1,167 @@
+:host { display: block; }
+
+.intro { border: 0; margin: 0; padding: 12px 8px; }
+
+/* ---------- Avisos de cambio de precio ---------- */
+
+.banda {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in oklab, var(--warning) 30%, transparent);
+  background: color-mix(in oklab, var(--warning) 6%, var(--surface-elevada));
+
+  p { flex: 1 1 240px; margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
+  strong { color: var(--foreground); font-weight: 600; }
+}
+
+.banda__icono {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  color: var(--warning-texto);
+  background: color-mix(in oklab, var(--warning) 14%, transparent);
+}
+
+/* ---------- Listas ---------- */
+
+.lista { list-style: none; margin: 0; padding: 0; }
+
+.pago {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--divisor-tenue);
+}
+
+.pago:last-child { border-bottom: 0; }
+
+.pago--registro,
+.pago--detectado { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+
+.fecha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--texto-activo);
+  line-height: 1.1;
+
+  strong { font-size: 16px; font-weight: 600; }
+  span { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+}
+
+.pago--vencido .fecha { color: var(--egreso-texto); background: var(--danger-suave); }
+
+.pago__datos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.pago__nombre {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.pago__detalle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--texto-tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pago__monto { font-size: 13px; text-align: right; }
+.periodo { font-size: 11px; font-weight: 500; color: var(--texto-tenue); }
+.pago__iconos { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.etiqueta-sub { padding: 0 6px; font-size: 9px; }
+
+.vacio { margin: 0; padding: 20px 24px; font-size: 12px; color: var(--texto-tenue); }
+
+.ignorados {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--texto-tenue);
+  text-align: center;
+}
+
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--enlace-activo);
+  cursor: pointer;
+  &:hover { text-decoration: underline; text-underline-offset: 4px; }
+}
+
+/* ---------- Formulario ---------- */
+
+.frecuencia { width: 100%; button { flex: 1; } }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--texto-medio);
+  cursor: pointer;
+
+  input { accent-color: var(--primary); width: 16px; height: 16px; }
+}
+
+.form-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--divisor-tenue);
+}
+
+/* ---------- Teléfono ---------- */
+
+@media (max-width: 639px) {
+  .pago {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'fecha datos monto'
+      'fecha estado accion';
+    gap: 6px 12px;
+    padding: 12px 16px;
+  }
+  .fecha { grid-area: fecha; align-self: start; }
+  .pago__datos { grid-area: datos; }
+  .pago__monto { grid-area: monto; }
+  .pago__estado { grid-area: estado; }
+  .pago__accion { grid-area: accion; }
+
+  .pago--registro,
+  .pago--detectado {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'datos monto'
+      'estado iconos';
+  }
+  .pago__iconos { grid-area: iconos; }
+  .pago--detectado .pago__iconos { grid-column: 1 / -1; justify-content: flex-end; }
+
+  .form-acciones .pc-boton { flex: 1; height: 44px; }
+}

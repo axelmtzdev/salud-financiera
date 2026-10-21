@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { BudgetService } from '../../core/services/budget.service';
 import { FinanceService } from '../../core/services/finance.service';
+import { RecurringService } from '../../core/services/recurring.service';
 import { EMPTY_FILTERS, UiStateService } from '../../core/services/ui-state.service';
 import { CardComponent } from '../../shared/components/card/card.component';
 import { DateRange } from '../../shared/models/finance.models';
@@ -30,6 +31,7 @@ import {
 export class QuickQuestionsComponent {
   private readonly finance = inject(FinanceService);
   private readonly budgets = inject(BudgetService);
+  private readonly recurring = inject(RecurringService);
   private readonly ui = inject(UiStateService);
   private readonly router = inject(Router);
   private readonly today = todayIso();
@@ -79,6 +81,7 @@ export class QuickQuestionsComponent {
       this.finance.movements(),
       this.today,
       this.budgets.budgets(),
+      this.recurring.list(),
     ),
   );
 

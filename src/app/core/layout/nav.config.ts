@@ -29,7 +29,11 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { path: '/analisis', label: 'Análisis', icon: 'chart-column', exact: false },
     ],
   },
-  // Aquí entrará el grupo "Planear" (pagos recurrentes, tarjetas y MSI, metas)
+  {
+    // Aquí entrarán también tarjetas y MSI, y metas
+    label: 'Planear',
+    links: [{ path: '/pagos', label: 'Pagos recurrentes', icon: 'repeat', exact: false }],
+  },
   {
     label: 'Herramientas',
     links: [{ path: '/preguntas', label: 'Preguntas', icon: 'message-circle-question-mark', exact: false }],

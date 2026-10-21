@@ -61,6 +61,30 @@ export interface AppData {
   rules: MerchantRule[];
   /** Tope mensual por categoría de egreso; el mismo monto aplica a cada mes */
   budgets: Budget[];
+  /** Pagos fijos y suscripciones */
+  recurring: RecurringPayment[];
+  /** Claves de pagos detectados que el usuario descartó (para no volver a sugerirlos) */
+  recurringIgnored: string[];
+}
+
+export type RecurringFrequency = 'mensual' | 'anual';
+
+export interface RecurringPayment {
+  id: string;
+  name: string;
+  /** Categoría de egreso */
+  category: string;
+  /** Monto esperado */
+  amount: number;
+  frequency: RecurringFrequency;
+  /** Día del mes en que vence (1-31; se ajusta al último día en meses cortos) */
+  day: number;
+  /** Mes en que vence (1-12); solo para pagos anuales */
+  month: number | null;
+  /** Texto normalizado que, si aparece en la descripción de un egreso, lo marca como pagado */
+  match: string;
+  subscription: boolean;
+  createdAt: string;
 }
 
 export interface Budget {
@@ -112,5 +136,5 @@ export interface Insight {
 }
 
 export function createEmptyData(): AppData {
-  return { version: 1, user: null, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [] };
+  return { version: 1, user: null, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [] };
 }

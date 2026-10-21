@@ -116,17 +116,26 @@ export class FinanceService {
   }
 
   exportJson(): string {
-    const { movements, categories, rules, budgets } = this.storage.state();
+    const { movements, categories, rules, budgets, recurring, recurringIgnored } = this.storage.state();
     return JSON.stringify(
-      { app: 'salud-financiera', exportedAt: new Date().toISOString(), movements, categories, rules, budgets },
+      {
+        app: 'salud-financiera',
+        exportedAt: new Date().toISOString(),
+        movements,
+        categories,
+        rules,
+        budgets,
+        recurring,
+        recurringIgnored,
+      },
       null,
       2,
     );
   }
 
   /**
-   * Reemplaza movimientos, categorías, reglas y presupuestos con un respaldo JSON.
-   * El usuario y la bandeja actuales se conservan; reglas y presupuestos solo si el respaldo no los trae.
+   * Reemplaza movimientos, categorías, reglas, presupuestos y pagos recurrentes con un respaldo JSON.
+   * El usuario y la bandeja actuales se conservan; lo opcional, solo si el respaldo no lo trae.
    */
   importJson(text: string): ImportResult {
     let parsed: unknown;
@@ -147,6 +156,8 @@ export class FinanceService {
       categories: data.categories,
       rules: has('rules') ? data.rules : current.rules,
       budgets: has('budgets') ? data.budgets : current.budgets,
+      recurring: has('recurring') ? data.recurring : current.recurring,
+      recurringIgnored: has('recurringIgnored') ? data.recurringIgnored : current.recurringIgnored,
     }));
     return ok ? { ok: true, count: kept.length } : { ok: false, error: 'No hay espacio suficiente en el navegador.' };
   }

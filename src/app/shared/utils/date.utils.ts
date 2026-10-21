@@ -78,3 +78,13 @@ export function daysInMonth(key: string): number {
   const [y, m] = key.split('-').map(Number);
   return new Date(y, m, 0).getDate();
 }
+
+export function addDays(iso: string, days: number): string {
+  const d = parseIsoDate(iso);
+  return toIsoDate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + days));
+}
+
+/** Días de `a` a `b` (b - a), ambos YYYY-MM-DD. */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((parseIsoDate(b).getTime() - parseIsoDate(a).getTime()) / 86_400_000);
+}

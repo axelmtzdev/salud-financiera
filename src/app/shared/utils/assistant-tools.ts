@@ -11,6 +11,7 @@ import {
   summarize,
 } from './analytics.utils';
 import { budgetOverview } from './budget.utils';
+import { currentOccurrence, detectRecurring, priceChange, recurringTotals, upcomingPayments } from './recurring.utils';
 import { isValidIsoDate, monthKey, monthLabel, todayIso } from './date.utils';
 import { APP_CURRENCY, round2 } from './format.utils';
 
@@ -275,6 +276,53 @@ const TOOLS: readonly ToolSpec[] = [
           proyeccionAlCierre: l.projected,
         })),
         sinPresupuesto: o.unbudgeted.map((s) => ({ categoria: s.category, gastado: s.total })),
+      };
+    },
+  },
+  {
+    name: 'pagos_recurrentes',
+    description:
+      'Pagos fijos y suscripciones registrados: monto, frecuencia, estado del vencimiento actual (pagado, pendiente, ' +
+      'vencido), los que vencen en los próximos 30 días, el compromiso mensual y cambios de precio detectados. ' +
+      'También lista los egresos que parecen recurrentes y aún no están registrados. Úsala para "¿qué pagos vienen?", ' +
+      '"¿cuánto gasto en suscripciones?" o "¿ya pagué la renta?".',
+    parameters: params({}),
+    run: (_args, { data, today }) => {
+      const totals = recurringTotals(data.recurring, data.movements, today);
+      return {
+        moneda: APP_CURRENCY,
+        compromisoMensual: totals.monthly,
+        suscripcionesMensual: totals.subscriptionsMonthly,
+        faltaPagarEsteMes: totals.pendingThisMonth,
+        pagos: data.recurring.map((r) => {
+          const o = currentOccurrence(r, data.movements, today);
+          return {
+            nombre: r.name,
+            categoria: r.category,
+            monto: r.amount,
+            frecuencia: r.frequency,
+            dia: r.day,
+            mes: r.month,
+            suscripcion: r.subscription,
+            vencimientoActual: o ? { fecha: o.due, estado: o.status } : null,
+          };
+        }),
+        proximos30Dias: upcomingPayments(data.recurring, data.movements, today, 30).map((o) => ({
+          nombre: o.payment.name,
+          fecha: o.due,
+          estado: o.status,
+          monto: o.payment.amount,
+        })),
+        cambiosDePrecio: data.recurring
+          .map((r) => priceChange(r, data.movements, today))
+          .filter((c) => c !== null)
+          .map((c) => ({ nombre: c.payment.name, antes: c.from, ahora: c.to, fecha: c.date })),
+        detectadosSinRegistrar: detectRecurring(data.movements, data.recurring, data.recurringIgnored, today).map((d) => ({
+          nombre: d.name,
+          monto: d.amount,
+          dia: d.day,
+          meses: d.months,
+        })),
       };
     },
   },

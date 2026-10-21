@@ -180,4 +180,27 @@ describe('quick-questions', () => {
       expect(askBudget('2026-03', []).headline).toContain('Aún no tienes presupuestos');
     });
   });
+
+  describe('recurring', () => {
+    const base = { category: 'Vivienda', frequency: 'mensual' as const, month: null, subscription: false, createdAt: '2026-01-01T00:00:00.000Z' };
+    const recurring = [
+      { ...base, id: 'r1', name: 'Renta', amount: 12000, day: 2, match: 'renta' },
+      { ...base, id: 'r2', name: 'Gimnasio', category: 'Salud', amount: 600, day: 25, match: 'gimnasio', subscription: true },
+      { ...base, id: 'r3', name: 'Seguro', category: 'Seguros', amount: 1800, day: 12, match: 'seguro' },
+    ];
+    const askRecurring = (list = recurring) => answerQuestion('recurring', defaults, movements, TODAY, [], list);
+
+    it('lista lo vencido y lo que viene en 30 días, con el compromiso mensual', () => {
+      // Renta del 2 de marzo está pagada (movimiento "Renta"); Seguro del 12 venció; Gimnasio vence el 25;
+      // dentro de 30 días también entran la renta y el seguro de abril
+      const answer = askRecurring();
+      expect(answer.headline).toBe(`Tienes 1 pago vencido y 3 por venir: ${money(1800 + 600 + 12000 + 1800)} en total.`);
+      expect(answer.rows.map((r) => r.label)).toEqual(['Seguro', 'Gimnasio', 'Renta', 'Seguro']);
+      expect(answer.detail).toContain(`${money(600)} corresponden a 1 suscripción`);
+    });
+
+    it('sin pagos registrados invita a agregarlos', () => {
+      expect(askRecurring([]).headline).toContain('Aún no registras pagos recurrentes');
+    });
+  });
 });

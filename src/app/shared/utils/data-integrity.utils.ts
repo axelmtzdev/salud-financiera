@@ -8,6 +8,7 @@ import {
   MOVEMENT_TYPES,
   MovementType,
   PendingMovement,
+  RecurringPayment,
   UserProfile,
   createEmptyData,
 } from '../models/finance.models';
@@ -57,8 +58,37 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
       pending: sanitizeList(raw['pending'], sanitizePending).slice(-MAX_PENDING),
       rules: sanitizeList(raw['rules'], sanitizeRule),
       budgets: sanitizeBudgets(raw['budgets']),
+      recurring: sanitizeList(raw['recurring'], sanitizeRecurring),
+      recurringIgnored: Array.isArray(raw['recurringIgnored'])
+        ? [...new Set(raw['recurringIgnored'].filter(nonEmptyString).map((k) => normalizeText(k).slice(0, 80)))]
+        : [],
     },
     discarded,
+  };
+}
+
+export function sanitizeRecurring(raw: unknown): RecurringPayment | null {
+  if (!isRecord(raw)) return null;
+  const { id, name, category, amount, frequency, day, month, match, subscription, createdAt } = raw;
+  if (!nonEmptyString(name) || !nonEmptyString(category)) return null;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) return null;
+  if (frequency !== 'mensual' && frequency !== 'anual') return null;
+  if (!Number.isInteger(day) || (day as number) < 1 || (day as number) > 31) return null;
+  const validMonth = Number.isInteger(month) && (month as number) >= 1 && (month as number) <= 12;
+  if (frequency === 'anual' && !validMonth) return null;
+  const cleanName = collapseSpaces(name).slice(0, 60);
+  return {
+    id: nonEmptyString(id) ? id : uuid(),
+    name: cleanName,
+    category: collapseSpaces(category).slice(0, 40),
+    amount: round2(amount),
+    frequency,
+    day: day as number,
+    month: frequency === 'anual' ? (month as number) : null,
+    match: normalizeText(nonEmptyString(match) ? match : cleanName).slice(0, 60),
+    subscription: subscription === true,
+    createdAt:
+      typeof createdAt === 'string' && !Number.isNaN(Date.parse(createdAt)) ? createdAt : new Date().toISOString(),
   };
 }
 

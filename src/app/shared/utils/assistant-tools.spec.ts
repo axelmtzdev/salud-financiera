@@ -43,7 +43,7 @@ const march = { desde: '2026-03-01', hasta: '2026-03-31' };
 
 describe('assistant-tools', () => {
   it('expone definiciones con esquema de objeto cerrado y obligatorios declarados', () => {
-    expect(ASSISTANT_TOOLS.length).toBe(8);
+    expect(ASSISTANT_TOOLS.length).toBe(9);
     for (const tool of ASSISTANT_TOOLS) {
       expect(tool.parameters.type).toBe('object');
       expect(tool.parameters.additionalProperties).toBeFalse();
@@ -203,6 +203,31 @@ describe('assistant-tools', () => {
     expect(february.mes).toBe('2026-02');
     expect(february.avanceDelMesPorcentaje).toBe(100);
     expect(ok(run('estado_presupuesto', {})).tienePresupuestos).toBeFalse();
+  });
+
+  it('pagos_recurrentes reporta estado, próximos, totales y detectados', () => {
+    const appData = withMovements(data.movements, {
+      recurring: [
+        {
+          id: 'r1',
+          name: 'Renta',
+          category: 'Vivienda',
+          amount: 12000,
+          frequency: 'mensual',
+          day: 2,
+          month: null,
+          match: 'renta',
+          subscription: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const result = ok(run('pagos_recurrentes', {}, appData));
+    expect(result.compromisoMensual).toBe(12000);
+    expect(result.pagos[0].vencimientoActual).toEqual({ fecha: '2026-04-02', estado: 'pendiente' });
+    expect(result.proximos30Dias).toEqual([{ nombre: 'Renta', fecha: '2026-04-02', estado: 'pendiente', monto: 12000 }]);
+    expect(result.cambiosDePrecio).toEqual([]);
+    expect(Array.isArray(result.detectadosSinRegistrar)).toBeTrue();
   });
 
   it('pendientes_por_confirmar resume la bandeja', () => {

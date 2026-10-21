@@ -1,6 +1,7 @@
-import { Budget, DateRange, Movement, MovementType } from '../models/finance.models';
+import { Budget, DateRange, Movement, MovementType, RecurringPayment } from '../models/finance.models';
 import { byCategory, filterByRange, monthlySeries, orderMovements, queryMovements, summarize } from './analytics.utils';
 import { budgetOverview } from './budget.utils';
+import { recurringTotals, upcomingPayments } from './recurring.utils';
 import { monthKey, monthLabel, monthRange, parseIsoDate, shiftMonthKey, todayIso } from './date.utils';
 import { formatCurrency, formatDate, formatPercent } from './format.utils';
 import { collapseSpaces } from './text.utils';
@@ -18,7 +19,8 @@ export type QuestionId =
   | 'largest-expenses'
   | 'search'
   | 'trend'
-  | 'budget';
+  | 'budget'
+  | 'recurring';
 
 /** Datos que pide cada pregunta, en el orden en que se muestran. */
 export type QuestionParam = 'period' | 'category' | 'month' | 'count' | 'text' | 'months';
@@ -40,6 +42,7 @@ export const QUICK_QUESTIONS: readonly QuickQuestion[] = [
   { id: 'search', label: '¿Cuánto llevo en algo específico?', icon: 'search', params: ['text', 'period'] },
   { id: 'trend', label: '¿Cómo ha cambiado mi saldo?', icon: 'trending-up', params: ['months'] },
   { id: 'budget', label: '¿Cómo voy con mi presupuesto?', icon: 'target', params: ['month'] },
+  { id: 'recurring', label: '¿Qué pagos fijos vienen?', icon: 'repeat', params: [] },
 ];
 
 export const COUNT_OPTIONS: readonly number[] = [5, 10, 20];
@@ -104,6 +107,7 @@ export function answerQuestion(
   movements: readonly Movement[],
   today = todayIso(),
   budgets: readonly Budget[] = [],
+  recurring: readonly RecurringPayment[] = [],
 ): QuickAnswer {
   switch (id) {
     case 'summary':
@@ -122,6 +126,8 @@ export function answerQuestion(
       return trendAnswer(movements, inputs.months, today);
     case 'budget':
       return budgetAnswer(movements, budgets, inputs.month, today);
+    case 'recurring':
+      return recurringAnswer(movements, recurring, today);
   }
 }
 
@@ -417,6 +423,52 @@ function budgetAnswer(
       percent: Math.min(l.ratio, 1) * 100,
     })),
     link: { type: 'egreso', from: range.from, to: range.to },
+  };
+}
+
+function recurringAnswer(movements: readonly Movement[], recurring: readonly RecurringPayment[], today: string): QuickAnswer {
+  if (!recurring.length) {
+    return empty('Aún no registras pagos recurrentes. Agrégalos en Pagos recurrentes; ahí también verás los que detectamos en tus movimientos.');
+  }
+  const upcoming = upcomingPayments(recurring, movements, today, 30);
+  const totals = recurringTotals(recurring, movements, today);
+  const overdue = upcoming.filter((o) => o.status === 'vencido');
+  const pending = upcoming.filter((o) => o.status === 'pendiente');
+  const sum = upcoming.reduce((s, o) => s + o.payment.amount, 0);
+
+  let headline: string;
+  if (!upcoming.length) headline = 'No tienes pagos fijos pendientes en los próximos 30 días.';
+  else if (overdue.length) {
+    headline =
+      `Tienes ${plural(overdue.length, 'pago vencido', 'pagos vencidos')}` +
+      (pending.length ? ` y ${pending.length} por venir` : '') +
+      `: ${money(sum)} en total.`;
+  } else {
+    const [next] = pending;
+    headline =
+      `En los próximos 30 días vienen ${plural(pending.length, 'pago', 'pagos')} por ${money(sum)}; ` +
+      `el siguiente es ${next.payment.name} el ${formatDate(next.due, 'short')}.`;
+  }
+
+  return {
+    headline,
+    detail:
+      `Tus pagos fijos suman ${money(totals.monthly)} al mes` +
+      (totals.subscriptionsCount
+        ? `, de los cuales ${money(totals.subscriptionsMonthly)} corresponden a ${plural(totals.subscriptionsCount, 'suscripción', 'suscripciones')}.`
+        : '.'),
+    stats: [
+      { label: 'Comprometido al mes', value: money(totals.monthly), tone: 'expense' },
+      { label: 'Suscripciones', value: money(totals.subscriptionsMonthly), tone: 'neutral' },
+      { label: 'Falta este mes', value: money(totals.pendingThisMonth), tone: 'neutral' },
+    ],
+    rowsTitle: upcoming.length ? 'Próximos 30 días' : undefined,
+    rows: upcoming.map((o) => ({
+      label: o.payment.name,
+      detail: `${formatDate(o.due, 'short')} · ${o.status === 'vencido' ? 'vencido' : o.daysLeft === 0 ? 'hoy' : `en ${o.daysLeft} días`}`,
+      value: money(o.payment.amount),
+      tone: o.status === 'vencido' ? 'expense' : 'neutral',
+    })),
   };
 }
 

@@ -1,0 +1,253 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Pagos recurrentes</span>
+      <h1 class="page-title">Tus pagos fijos y suscripciones</h1>
+      <p class="page-subtitle">Lo que pagas cada mes o cada año: qué viene, qué ya pagaste y cuánto te comprometen.</p>
+    </div>
+    @if (recurring.hasAny()) {
+      <div class="page-actions">
+        <button type="button" class="pc-boton boton-elevado" (click)="openNew()">
+          <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar pago
+        </button>
+      </div>
+    }
+  </header>
+
+  @if (!recurring.hasAny()) {
+    <app-card>
+      <div class="empty-state intro">
+        <span class="empty-state__icon"><svg lucideIcon="repeat" [size]="20" [strokeWidth]="1.75" aria-hidden="true"></svg></span>
+        <h3>Aún no tienes pagos recurrentes</h3>
+        <p>
+          Registra la renta, los servicios y tus suscripciones para saber qué viene, avisarte si algo cambia de precio y
+          ver cuánto se va al mes en pagos fijos.
+        </p>
+        <div class="empty-state__actions">
+          <button type="button" class="pc-boton boton-elevado" (click)="openNew()">
+            <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar pago
+          </button>
+        </div>
+      </div>
+    </app-card>
+  } @else {
+    @let t = recurring.totals();
+    <section class="stats-grid" aria-label="Resumen de pagos recurrentes">
+      <app-stat-tile label="Comprometido al mes" [value]="fmt(t.monthly)" tone="expense" [hint]="recurring.list().length + (recurring.list().length === 1 ? ' pago' : ' pagos')" />
+      <app-stat-tile label="Suscripciones" [value]="fmt(t.subscriptionsMonthly)" [hint]="t.subscriptionsCount + (t.subscriptionsCount === 1 ? ' suscripción' : ' suscripciones') + ' · por mes'" />
+      <app-stat-tile label="Falta pagar este mes" [value]="fmt(t.pendingThisMonth)" />
+      @if (next(); as n) {
+        <app-stat-tile [label]="'Próximo: ' + n.payment.name" [value]="fmt(n.payment.amount)" [hint]="(n.due | dateFormat: 'short') + ' · ' + whenLabel(n)" />
+      } @else {
+        <app-stat-tile label="Próximo pago" value="—" hint="Nada en los próximos 30 días" />
+      }
+    </section>
+
+    @for (change of recurring.priceChanges(); track change.payment.id) {
+      <div class="banda banda--aviso mov-entrar">
+        <span class="banda__icono"><svg lucideIcon="trending-up" [size]="15" aria-hidden="true"></svg></span>
+        <p>
+          <strong>{{ change.payment.name }} {{ change.to > change.from ? 'subió' : 'bajó' }} de precio:</strong>
+          el {{ change.date | dateFormat: 'short' }} se cobraron {{ change.to | currencyFormat }} y tenías registrado {{ change.from | currencyFormat }}.
+        </p>
+        <button type="button" class="pc-boton boton-elevado" (click)="applyPrice(change)">Actualizar a {{ change.to | currencyFormat }}</button>
+      </div>
+    }
+
+    <app-card title="Próximos 30 días" subtitle="Lo que vence pronto y lo que se quedó sin pagar" [flush]="true">
+      @if (recurring.upcoming().length) {
+        <ul class="lista">
+          @for (o of recurring.upcoming(); track o.payment.id + o.due) {
+            <li class="pago" [class.pago--vencido]="o.status === 'vencido'">
+              <span class="fecha pc-num" aria-hidden="true">
+                <strong>{{ o.due.slice(8) }}</strong>
+                <span>{{ monthShort(o.due) }}</span>
+              </span>
+              <span class="pago__datos">
+                <span class="pago__nombre">{{ o.payment.name }}</span>
+                <span class="pago__detalle">
+                  <span class="punto" [style.background]="finance.colorOf('egreso', o.payment.category)"></span>{{ o.payment.category }}
+                </span>
+              </span>
+              <span class="pago__monto amount pc-num">{{ o.payment.amount | currencyFormat }}</span>
+              <span class="pago__estado">
+                <span class="pill" [class.pill--egreso]="o.status === 'vencido'" [class.pill--muted]="o.status !== 'vencido'">
+                  <span class="punto"></span>{{ whenLabel(o) }}
+                </span>
+              </span>
+              <button type="button" class="pc-boton boton-elevado pago__accion" (click)="markPaid(o)">
+                <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> Marcar pagado
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="vacio">No hay pagos pendientes en los próximos 30 días.</p>
+      }
+    </app-card>
+
+    <app-card title="Todos tus pagos" subtitle="Ordenados por día de vencimiento" [flush]="true">
+      <ul class="lista">
+        @for (row of recurring.rows(); track row.payment.id) {
+          <li class="pago pago--registro">
+            <span class="pago__datos">
+              <span class="pago__nombre">
+                {{ row.payment.name }}
+                @if (row.payment.subscription) {
+                  <span class="pill pill--muted etiqueta-sub">Suscripción</span>
+                }
+              </span>
+              <span class="pago__detalle">
+                <span class="punto" [style.background]="finance.colorOf('egreso', row.payment.category)"></span>
+                {{ row.payment.category }} · {{ schedule(row.payment) }}
+              </span>
+            </span>
+            <span class="pago__monto amount pc-num">
+              {{ row.payment.amount | currencyFormat }}<span class="periodo">/{{ row.payment.frequency === 'mensual' ? 'mes' : 'año' }}</span>
+            </span>
+            <span class="pago__estado">
+              @if (row.occurrence; as o) {
+                <span
+                  class="pill"
+                  [class.pill--ingreso]="o.status === 'pagado'"
+                  [class.pill--egreso]="o.status === 'vencido'"
+                  [class.pill--muted]="o.status === 'pendiente'"
+                  [title]="'Vencimiento: ' + (o.due | dateFormat: 'short')"
+                >
+                  <span class="punto"></span>{{ whenLabel(o) }}
+                </span>
+              }
+            </span>
+            <span class="pago__iconos">
+              <button type="button" class="icon-btn" (click)="edit(row.payment)" title="Editar" [attr.aria-label]="'Editar ' + row.payment.name">
+                <svg lucideIcon="pencil" [size]="15" aria-hidden="true"></svg>
+              </button>
+              <button type="button" class="icon-btn icon-btn--danger" (click)="remove(row.payment)" title="Quitar" [attr.aria-label]="'Quitar ' + row.payment.name">
+                <svg lucideIcon="trash-2" [size]="15" aria-hidden="true"></svg>
+              </button>
+            </span>
+          </li>
+        }
+      </ul>
+    </app-card>
+  }
+
+  @if (recurring.detected().length) {
+    <app-card title="Detectados en tus movimientos" subtitle="Egresos que se repiten cada mes con un monto parecido" [flush]="true">
+      @if (recurring.detected().length > 1) {
+        <button card-actions type="button" class="pc-boton pc-btn--ghost" (click)="addAllDetected()">
+          <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar todos ({{ recurring.detected().length }})
+        </button>
+      }
+      <ul class="lista">
+        @for (d of recurring.detected(); track d.key) {
+          <li class="pago pago--detectado mov-entrar">
+            <span class="pago__datos">
+              <span class="pago__nombre">
+                {{ d.name }}
+                @if (d.subscription) {
+                  <span class="pill pill--muted etiqueta-sub">Suscripción</span>
+                }
+              </span>
+              <span class="pago__detalle">
+                <span class="punto" [style.background]="finance.colorOf('egreso', d.category)"></span>
+                {{ d.category }} · visto en {{ d.months }} meses · alrededor del día {{ d.day }}
+              </span>
+            </span>
+            <span class="pago__monto amount pc-num">{{ d.amount | currencyFormat }}</span>
+            <span class="pago__iconos">
+              <button type="button" class="pc-btn--ghost pc-boton" (click)="ignore(d)">Ignorar</button>
+              <button type="button" class="pc-boton boton-elevado" (click)="addDetected(d)">
+                <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar
+              </button>
+            </span>
+          </li>
+        }
+      </ul>
+    </app-card>
+  }
+
+  @if (recurring.ignoredCount() > 0) {
+    <p class="ignorados">
+      Descartaste {{ recurring.ignoredCount() }} {{ recurring.ignoredCount() === 1 ? 'sugerencia' : 'sugerencias' }}.
+      <button type="button" class="link-btn" (click)="restoreIgnored()">Volver a mostrarlas</button>
+    </p>
+  }
+
+  @if (formOpen()) {
+    <app-card id="pago-form" [title]="editingId() ? 'Editar pago' : 'Nuevo pago'" subtitle="Se marca como pagado solo cuando registras el egreso" class="mov-entrar">
+      <div class="form-grid form-grid--2">
+        <div class="field">
+          <label class="field-label" for="r-name">Nombre</label>
+          <input id="r-name" class="input" maxlength="60" placeholder="Ej. Netflix, Renta, Luz" [value]="name()" (input)="name.set($any($event.target).value); formError.set(null)" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="r-amount">Monto</label>
+          <div class="input-group">
+            <span class="input-prefix">$</span>
+            <input id="r-amount" class="input pc-num" inputmode="decimal" placeholder="0.00" [value]="amount()" (input)="amount.set($any($event.target).value); formError.set(null)" />
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="r-category">Categoría</label>
+          <select id="r-category" class="input" [value]="category()" (change)="category.set($any($event.target).value); formError.set(null)">
+            <option value="">Elige categoría…</option>
+            @for (c of finance.categories().egreso; track c) {
+              <option [value]="c" [selected]="c === category()">{{ c }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <span class="field-label" id="r-frequency">Frecuencia</span>
+          <div class="segmented frecuencia" role="radiogroup" aria-labelledby="r-frequency">
+            <button type="button" role="radio" [class.active]="frequency() === 'mensual'" [attr.aria-checked]="frequency() === 'mensual'" (click)="frequency.set('mensual')">Mensual</button>
+            <button type="button" role="radio" [class.active]="frequency() === 'anual'" [attr.aria-checked]="frequency() === 'anual'" (click)="frequency.set('anual')">Anual</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="r-day">Día de vencimiento</label>
+          <select id="r-day" class="input" [value]="day()" (change)="day.set(+$any($event.target).value)">
+            @for (d of days; track d) {
+              <option [value]="d" [selected]="d === day()">{{ d }}</option>
+            }
+          </select>
+          @if (day() > 28) {
+            <span class="field-hint">En meses más cortos vence el último día.</span>
+          }
+        </div>
+        @if (frequency() === 'anual') {
+          <div class="field mov-entrar">
+            <label class="field-label" for="r-month">Mes</label>
+            <select id="r-month" class="input" [value]="month()" (change)="month.set(+$any($event.target).value)">
+              @for (m of months; track m.value) {
+                <option [value]="m.value" [selected]="m.value === month()">{{ m.label }}</option>
+              }
+            </select>
+          </div>
+        }
+        <div class="field span-2">
+          <label class="field-label" for="r-match">Texto para reconocerlo <span class="optional">(opcional)</span></label>
+          <input id="r-match" class="input" maxlength="60" placeholder="Ej. netflix" [value]="match()" (input)="match.set($any($event.target).value)" />
+          <span class="field-hint">
+            Si la descripción de un egreso contiene este texto, el pago se marca como hecho. Si lo dejas vacío se usa el nombre.
+            Los cargos del iPhone llegan con el nombre del comercio (por ejemplo "NETFLIX.COM").
+          </span>
+        </div>
+        <label class="check span-2">
+          <input type="checkbox" [checked]="subscription()" (change)="subscription.set($any($event.target).checked)" />
+          Es una suscripción (streaming, apps, gimnasio…)
+        </label>
+      </div>
+      @if (formError(); as message) {
+        <p class="field-error" role="alert">{{ message }}</p>
+      }
+      <div class="form-acciones">
+        <button type="button" class="pc-boton pc-btn--ghost" (click)="cancelForm()">Cancelar</button>
+        <button type="button" class="pc-boton boton-primario-elevado" (click)="submit()">
+          <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg>
+          {{ editingId() ? 'Guardar cambios' : 'Agregar pago' }}
+        </button>
+      </div>
+    </app-card>
+  }
+</div>
