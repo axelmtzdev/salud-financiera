@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AbstractControl, FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { AuthService } from '../../core/services/auth.service';
@@ -13,10 +14,12 @@ import { MOVEMENT_TYPES, MovementType } from '../../shared/models/finance.models
 import { todayIso } from '../../shared/utils/date.utils';
 import { downloadFile, movementsToCsv } from '../../shared/utils/file.utils';
 import { FinanceValidators } from '../../shared/validators/finance.validators';
+import { PASSWORD_MIN_LENGTH } from '../auth/register/register.component';
 import { QuickAddSettingsComponent } from './quick-add-settings/quick-add-settings.component';
 
-/** Límite típico de localStorage por origen. */
-const STORAGE_QUOTA = 5 * 1024 * 1024;
+type BusyAction = 'profile' | 'password' | 'delete' | 'legacy';
+
+const errorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Ocurrió un error inesperado.');
 
 @Component({
   selector: 'app-settings',
@@ -28,7 +31,7 @@ const STORAGE_QUOTA = 5 * 1024 * 1024;
 export class SettingsComponent {
   private readonly auth = inject(AuthService);
   protected readonly finance = inject(FinanceService);
-  private readonly storage = inject(StorageService);
+  protected readonly storage = inject(StorageService);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
@@ -37,14 +40,23 @@ export class SettingsComponent {
   protected readonly typeLabel = MOVEMENT_TYPE_LABEL;
   protected readonly categoryMax = CATEGORY_MAX_LENGTH;
   protected readonly retentionYears = RETENTION_YEARS;
+  protected readonly passwordMin = PASSWORD_MIN_LENGTH;
+  protected readonly email = computed(() => this.auth.user()?.email ?? '');
+  /** Acción esperando respuesta del servidor (evita dobles envíos). */
+  protected readonly busy = signal<BusyAction | null>(null);
 
-  protected readonly profile = inject(FormBuilder).nonNullable.group({
+  private readonly fb = inject(FormBuilder).nonNullable;
+  protected readonly profile = this.fb.group({
     name: [this.auth.userName(), [Validators.required, Validators.maxLength(30), FinanceValidators.notBlank]],
-    secretQuestion: [this.auth.secretQuestion(), [Validators.required, Validators.maxLength(100), FinanceValidators.notBlank]],
-    currentAnswer: ['', [Validators.required]],
-    newAnswer: ['', [Validators.minLength(2)]],
   });
-  protected readonly profileError = signal<string | null>(null);
+  protected readonly password = this.fb.group({
+    current: ['', [Validators.required]],
+    next: ['', [Validators.required, Validators.minLength(PASSWORD_MIN_LENGTH)]],
+    confirm: ['', [Validators.required, FinanceValidators.sameAs('next')]],
+  });
+  protected readonly passwordError = signal<string | null>(null);
+  protected readonly deletion = this.fb.group({ password: ['', [Validators.required]] });
+  protected readonly deleteError = signal<string | null>(null);
 
   protected readonly newCategory: Record<MovementType, FormControl<string>> = {
     ingreso: new FormControl('', { nonNullable: true }),
@@ -53,35 +65,97 @@ export class SettingsComponent {
   protected readonly categoryError = signal<Partial<Record<MovementType, string>>>({});
 
   protected readonly movementCount = computed(() => this.finance.movements().length);
-  protected readonly usage = computed(() => {
-    this.storage.state(); // recalcula cuando cambian los datos
-    const bytes = this.storage.usageBytes();
-    return { kb: (bytes / 1024).toFixed(1), percent: Math.min(100, (bytes / STORAGE_QUOTA) * 100) };
-  });
 
-  protected profileInvalid(name: 'name' | 'secretQuestion' | 'currentAnswer' | 'newAnswer'): boolean {
-    const control = this.profile.controls[name];
+  constructor() {
+    const { next, confirm } = this.password.controls;
+    next.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => confirm.updateValueAndValidity());
+  }
+
+  protected invalid(control: AbstractControl): boolean {
     return control.invalid && control.touched;
   }
 
-  protected saveProfile(): void {
-    this.profileError.set(null);
+  protected async saveProfile(): Promise<void> {
     if (this.profile.invalid) {
       this.profile.markAllAsTouched();
       return;
     }
-    const { name, secretQuestion, currentAnswer, newAnswer } = this.profile.getRawValue();
-    if (!this.auth.verify(currentAnswer)) {
-      this.profileError.set('La respuesta actual no es correcta.');
+    await this.run('profile', async () => {
+      await this.auth.updateName(this.profile.getRawValue().name);
+      this.profile.reset({ name: this.auth.userName() });
+      this.toast.success('Nombre actualizado');
+    });
+  }
+
+  protected async changePassword(): Promise<void> {
+    this.passwordError.set(null);
+    if (this.password.invalid) {
+      this.password.markAllAsTouched();
       return;
     }
-    const ok = this.auth.updateProfile({ name, secretQuestion, secretAnswer: newAnswer.trim() || undefined });
-    if (!ok) {
-      this.toast.error('No se pudo guardar el perfil.');
+    const { current, next } = this.password.getRawValue();
+    await this.run('password', async () => {
+      try {
+        await this.auth.changePassword(current, next);
+      } catch (err) {
+        this.passwordError.set(errorMessage(err));
+        return;
+      }
+      this.password.reset();
+      this.toast.success('Contraseña actualizada. Se cerró la sesión en tus otros dispositivos.');
+    });
+  }
+
+  protected async deleteAccount(): Promise<void> {
+    this.deleteError.set(null);
+    if (this.deletion.invalid) {
+      this.deleteError.set('Escribe tu contraseña para confirmar.');
       return;
     }
-    this.profile.reset({ name: this.auth.userName(), secretQuestion: this.auth.secretQuestion(), currentAnswer: '', newAnswer: '' });
-    this.toast.success('Perfil actualizado');
+    const ok = await this.confirm.ask({
+      title: 'Eliminar mi cuenta',
+      message: `Se borrarán tu cuenta (${this.email()}) y todos tus movimientos, presupuestos y pagos del servidor, en todos tus dispositivos. Te recomendamos descargar un respaldo antes. No se puede deshacer.`,
+      confirmText: 'Eliminar cuenta',
+      danger: true,
+    });
+    if (!ok) return;
+    await this.run('delete', async () => {
+      try {
+        await this.auth.deleteAccount(this.deletion.getRawValue().password);
+      } catch (err) {
+        this.deleteError.set(errorMessage(err));
+        return;
+      }
+      this.toast.show('Tu cuenta se eliminó.');
+      this.router.navigate(['/registro']);
+    });
+  }
+
+  protected async importLegacy(): Promise<void> {
+    await this.run('legacy', async () => {
+      if (await this.storage.importLegacy()) this.toast.success('Tus datos se subieron a tu cuenta');
+    });
+  }
+
+  protected async discardLegacy(): Promise<void> {
+    const ok = await this.confirm.ask({
+      title: 'Descartar datos de este navegador',
+      message: 'Dejarán de ofrecerse para subir. Se guarda una copia oculta en este navegador por si la necesitas después.',
+      confirmText: 'Descartar',
+    });
+    if (ok) this.storage.archiveLegacy();
+  }
+
+  /** Marca la acción como ocupada mientras responde el servidor; los errores no previstos se muestran como aviso. */
+  private async run(action: BusyAction, task: () => Promise<void>): Promise<void> {
+    this.busy.set(action);
+    try {
+      await task();
+    } catch (err) {
+      this.toast.error(errorMessage(err));
+    } finally {
+      this.busy.set(null);
+    }
   }
 
   protected addCategory(type: MovementType): void {
@@ -126,7 +200,7 @@ export class SettingsComponent {
     if (!file) return;
     const ok = await this.confirm.ask({
       title: 'Restaurar respaldo',
-      message: `Se reemplazarán tus ${this.movementCount()} movimientos y categorías actuales con el contenido de "${file.name}". Tu acceso no cambia.`,
+      message: `Se reemplazarán tus ${this.movementCount()} movimientos y categorías actuales con el contenido de "${file.name}", en todos tus dispositivos. Tu cuenta no cambia.`,
       confirmText: 'Restaurar',
       danger: true,
     });
@@ -150,18 +224,5 @@ export class SettingsComponent {
     });
     if (!ok) return;
     if (this.finance.clearMovements()) this.toast.success('Movimientos eliminados');
-  }
-
-  protected async resetApp(): Promise<void> {
-    const ok = await this.confirm.ask({
-      title: 'Restablecer la aplicación',
-      message: 'Se borrarán tu usuario, pregunta secreta, movimientos y categorías de este navegador. Esta acción no se puede deshacer.',
-      confirmText: 'Borrar todo',
-      danger: true,
-    });
-    if (!ok) return;
-    this.storage.reset();
-    this.auth.logout();
-    this.router.navigate(['/bienvenida']);
   }
 }

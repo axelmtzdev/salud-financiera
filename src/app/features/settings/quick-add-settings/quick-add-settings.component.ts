@@ -32,7 +32,7 @@ import { quickAddTemplate } from '../../../shared/utils/quick-add.utils';
         <li>Elige tus tarjetas y marca <strong>Ejecutar inmediatamente</strong>.</li>
         <li>Agrega la acción <strong>Codificar URL</strong> con el comercio de la entrada del atajo (para espacios y acentos).</li>
         <li>Agrega <strong>URL</strong> con la plantilla de arriba y pon las variables en su lugar.</li>
-        <li>Termina con <strong>Abrir URL</strong>. Debe abrir el mismo navegador donde usas la app.</li>
+        <li>Termina con <strong>Abrir URL</strong>. Si en ese navegador no tienes sesión iniciada, te la pedirá y guardará el cargo al entrar.</li>
       </ol>
 
       <a class="pc-boton boton-elevado" routerLink="/registro-rapido" fragment="monto=1.00&comercio=Prueba de atajo&tarjeta=Prueba">

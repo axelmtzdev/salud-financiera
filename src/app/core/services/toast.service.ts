@@ -37,4 +37,9 @@ export class ToastService {
   dismiss(id: number): void {
     this._toasts.update((list) => list.filter((t) => t.id !== id));
   }
+
+  /** Cierra los avisos de un tipo (p. ej. los de éxito de un cambio que el servidor terminó rechazando). */
+  dismissType(type: ToastType): void {
+    this._toasts.update((list) => list.filter((t) => t.type !== type));
+  }
 }

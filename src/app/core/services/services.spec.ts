@@ -1,14 +1,64 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { Account } from '../../shared/models/finance.models';
+import { DataChanges } from '../../shared/utils/sync.utils';
+import { ApiError, ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { FinanceService } from './finance.service';
-import { DATA_KEY } from './storage.service';
+import { LEGACY_DATA_KEY, StorageService } from './storage.service';
+
+const today = new Date().toISOString().slice(0, 10);
+const ACCOUNT: Account = { id: 'u1', name: 'Ana', email: 'ana@correo.mx' };
+
+/** Backend en memoria: responde como la API real y permite simular fallas. */
+class FakeApi {
+  token: string | null = null;
+  readonly hasToken = () => this.token !== null;
+  readonly waking = () => false;
+  onUnauthorized: (() => void) | null = null;
+  serverData: Record<string, unknown> = { movements: [] };
+  sent: DataChanges[] = [];
+  failNext = false;
+
+  setToken(token: string | null) {
+    this.token = token;
+  }
+
+  async get(path: string) {
+    if (path === '/api/data') return { data: this.serverData, purged: 0 };
+    if (path === '/api/auth/me') return { user: ACCOUNT };
+    throw new Error(path);
+  }
+
+  async post(path: string, body: unknown) {
+    if (path === '/api/auth/login') {
+      const { password } = body as { password: string };
+      if (password !== 'clave-correcta') throw new ApiError(401, 'Correo o contraseña incorrectos.');
+      return { token: 't1', user: ACCOUNT };
+    }
+    if (path === '/api/data/changes') {
+      if (this.failNext) {
+        this.failNext = false;
+        throw new ApiError(0, 'No hay conexión con el servidor.');
+      }
+      this.sent.push(body as DataChanges);
+      return undefined;
+    }
+    return undefined;
+  }
+}
 
 describe('Servicios', () => {
+  let api: FakeApi;
+
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    api = new FakeApi();
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection(), provideRouter([]), { provide: ApiService, useValue: api }],
+    });
   });
 
   afterAll(() => {
@@ -16,37 +66,110 @@ describe('Servicios', () => {
     sessionStorage.clear();
   });
 
-  describe('AuthService', () => {
-    it('configura el usuario sin guardar la respuesta en texto plano', () => {
-      const auth = TestBed.inject(AuthService);
-      expect(auth.isConfigured()).toBeFalse();
-      auth.setup({ name: 'Ana', secretQuestion: '¿Película favorita?', secretAnswer: 'Matrix' });
-      expect(auth.isAuthenticated()).toBeTrue();
-      expect(localStorage.getItem(DATA_KEY)).not.toContain('Matrix');
-    });
+  async function loggedIn() {
+    const auth = TestBed.inject(AuthService);
+    await auth.whenReady();
+    await auth.login('ana@correo.mx', 'clave-correcta');
+    return auth;
+  }
 
-    it('valida la respuesta sin distinguir mayúsculas, acentos ni espacios', () => {
-      const auth = TestBed.inject(AuthService);
-      auth.setup({ name: 'Ana', secretQuestion: '¿Película?', secretAnswer: 'El Laberinto del Fauno' });
+  describe('AuthService', () => {
+    it('inicia sesión, carga los datos del servidor y cierra sesión borrando la caché', async () => {
+      api.serverData = { movements: [{ id: 'm1', type: 'ingreso', category: 'Salario', amount: 100, date: today }] };
+      const auth = await loggedIn();
+      expect(auth.isAuthenticated()).toBeTrue();
+      expect(auth.userName()).toBe('Ana');
+      expect(TestBed.inject(FinanceService).movements().length).toBe(1);
+      expect(localStorage.getItem('salud-financiera.cache.u1')).toContain('m1');
+
       auth.logout();
       expect(auth.isAuthenticated()).toBeFalse();
-      expect(auth.login('otra')).toBeFalse();
-      expect(auth.login('  el   laberinto del FAUNO ')).toBeTrue();
+      expect(api.token).toBeNull();
+      expect(localStorage.getItem('salud-financiera.cache.u1')).toBeNull();
+      expect(TestBed.inject(FinanceService).movements().length).toBe(0);
+    });
+
+    it('rechaza una contraseña incorrecta con el mensaje del servidor', async () => {
+      const auth = TestBed.inject(AuthService);
+      await expectAsync(auth.login('ana@correo.mx', 'otra')).toBeRejectedWithError('Correo o contraseña incorrectos.');
+      expect(auth.isAuthenticated()).toBeFalse();
+    });
+
+    it('con token y caché entra de inmediato sin esperar al servidor', async () => {
+      api.token = 't1';
+      localStorage.setItem('salud-financiera.account', JSON.stringify(ACCOUNT));
+      localStorage.setItem('salud-financiera.cache.u1', JSON.stringify({ movements: [{ id: 'c1', type: 'egreso', category: 'Vivienda', amount: 5, date: today }] }));
+      const auth = TestBed.inject(AuthService);
+      await auth.whenReady();
       expect(auth.isAuthenticated()).toBeTrue();
+      expect(TestBed.inject(FinanceService).getById('c1')).toBeDefined();
+    });
+  });
+
+  describe('StorageService', () => {
+    it('sin sesión no acepta cambios', () => {
+      expect(TestBed.inject(FinanceService).add({ type: 'egreso', category: 'X', amount: 1, date: today, description: '' })).toBeNull();
+    });
+
+    it('envía solo lo que cambió y revierte si el servidor falla', async () => {
+      await loggedIn();
+      const finance = TestBed.inject(FinanceService);
+      const storage = TestBed.inject(StorageService);
+
+      const m = finance.add({ type: 'egreso', category: 'Vivienda', amount: 100, date: today, description: 'Renta' })!;
+      expect(await storage.flush()).toBeTrue();
+      expect(api.sent.at(-1)).toEqual({ upsert: { movements: [m] }, remove: {} });
+
+      api.failNext = true;
+      finance.update(m.id, { ...m, amount: 50 });
+      expect(finance.getById(m.id)?.amount).toBe(50); // se ve de inmediato
+      expect(await storage.flush()).toBeFalse();
+      expect(finance.getById(m.id)?.amount).toBe(100); // y se revierte
+
+      finance.remove(m.id);
+      await storage.flush();
+      expect(api.sent.at(-1)).toEqual({ upsert: {}, remove: { movements: [m.id] } });
+    });
+
+    it('sube los datos de la versión anterior sin duplicar y los deja como respaldo', async () => {
+      localStorage.setItem(
+        LEGACY_DATA_KEY,
+        JSON.stringify({
+          movements: [
+            { id: 'm1', type: 'ingreso', category: 'Salario', amount: 100, date: today },
+            { id: 'local', type: 'egreso', category: 'Vivienda', amount: 30, date: today },
+          ],
+          budgets: [{ category: 'Vivienda', amount: 500 }],
+        }),
+      );
+      api.serverData = { movements: [{ id: 'm1', type: 'ingreso', category: 'Salario', amount: 100, date: today }] };
+      await loggedIn();
+      const storage = TestBed.inject(StorageService);
+      expect(storage.legacyData()?.movements.length).toBe(2);
+
+      expect(await storage.importLegacy()).toBeTrue();
+      expect(api.sent.at(-1)?.upsert.movements?.map((m) => m.id)).toEqual(['local']);
+      expect(api.sent.at(-1)?.upsert.budgets).toEqual([{ category: 'Vivienda', amount: 500 }]);
+      expect(storage.legacyData()).toBeNull();
+      expect(localStorage.getItem(LEGACY_DATA_KEY)).toBeNull();
+      expect(localStorage.getItem('salud-financiera.data.respaldo')).toContain('local');
     });
   });
 
   describe('FinanceService', () => {
-    it('agrega, actualiza, elimina y restaura movimientos persistiendo en localStorage', () => {
+    beforeEach(async () => {
+      await loggedIn();
+    });
+
+    it('agrega, actualiza, elimina y restaura movimientos', () => {
       const finance = TestBed.inject(FinanceService);
-      const m = finance.add({ type: 'egreso', category: 'Vivienda', amount: 100.005, date: '2026-10-01', description: '  Renta  ' });
+      const m = finance.add({ type: 'egreso', category: 'Vivienda', amount: 100.005, date: today, description: '  Renta  ' });
       expect(m).not.toBeNull();
       expect(finance.movements()[0].amount).toBe(100.01);
       expect(finance.movements()[0].description).toBe('Renta');
 
       expect(finance.update(m!.id, { ...m!, amount: 50 })).toBeTrue();
       expect(finance.getById(m!.id)?.amount).toBe(50);
-      expect(JSON.parse(localStorage.getItem(DATA_KEY)!).movements.length).toBe(1);
 
       const removed = finance.remove(m!.id);
       expect(finance.movements().length).toBe(0);
@@ -66,7 +189,6 @@ describe('Servicios', () => {
 
     it('importa un respaldo descartando registros inválidos', () => {
       const finance = TestBed.inject(FinanceService);
-      const today = new Date().toISOString().slice(0, 10);
       const result = finance.importJson(
         JSON.stringify({
           movements: [

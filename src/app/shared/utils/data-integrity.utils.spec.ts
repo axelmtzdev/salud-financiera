@@ -3,7 +3,7 @@ import { purgeOldMovements, sanitizeAppData } from './data-integrity.utils';
 describe('data-integrity.utils', () => {
   it('devuelve datos vacíos ante basura', () => {
     expect(sanitizeAppData('nope').data.movements).toEqual([]);
-    expect(sanitizeAppData(null).data.user).toBeNull();
+    expect(sanitizeAppData(null).data.pending).toEqual([]);
   });
 
   it('descarta movimientos inválidos o duplicados y repara campos opcionales', () => {

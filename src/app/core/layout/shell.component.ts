@@ -1,11 +1,14 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, afterNextRender, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { HeaderComponent } from '../../shared/components/header/header.component';
 import { BottomNavComponent } from '../../shared/components/bottom-nav/bottom-nav.component';
 import { SidebarComponent } from '../../shared/components/sidebar/sidebar.component';
 import { AuthService } from '../services/auth.service';
+import { ConfirmService } from '../services/confirm.service';
 import { StorageService } from '../services/storage.service';
 import { ToastService } from '../services/toast.service';
+
+const LEGACY_LATER_KEY = 'salud-financiera.subir-despues';
 
 /** Layout de la zona privada: header + navegación + contenido. */
 @Component({
@@ -42,12 +45,31 @@ export class ShellComponent {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
+  private readonly storage = inject(StorageService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
+
   constructor() {
-    const { purged, discarded, corrupted } = inject(StorageService).consumeLoadReport();
-    const toast = inject(ToastService);
-    if (corrupted) toast.error('Los datos guardados estaban dañados; se respaldaron y se inició vacío.');
-    else if (purged > 0) toast.show(`Se archivaron ${purged} movimientos con más de 2 años de antigüedad.`);
-    else if (discarded > 0) toast.show(`Se descartaron ${discarded} registros inválidos.`);
+    afterNextRender(() => this.offerLegacyData());
+  }
+
+  /** Una vez por sesión del navegador ofrece subir los datos que la versión anterior guardaba localmente. */
+  private async offerLegacyData(): Promise<void> {
+    const legacy = this.storage.legacyData();
+    if (!legacy || sessionStorage.getItem(LEGACY_LATER_KEY)) return;
+    const count = legacy.movements.length;
+    const ok = await this.confirm.ask({
+      title: 'Datos guardados en este navegador',
+      message: `Encontramos ${count === 1 ? '1 movimiento' : `${count} movimientos`} y tus ajustes de la versión anterior, que solo vivían en este navegador. ¿Quieres subirlos a tu cuenta para verlos en todos tus dispositivos? No se duplica lo que ya tengas.`,
+      confirmText: 'Subir a mi cuenta',
+      cancelText: 'Ahora no',
+    });
+    if (!ok) {
+      sessionStorage.setItem(LEGACY_LATER_KEY, '1');
+      this.toast.show('Puedes subirlos después desde Ajustes.');
+      return;
+    }
+    if (await this.storage.importLegacy()) this.toast.success('Tus datos se subieron a tu cuenta');
   }
 
   protected logout(): void {

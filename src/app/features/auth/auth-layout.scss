@@ -68,16 +68,12 @@ form {
   gap: 16px;
 }
 
-.question {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: var(--texto-activo);
-  font-size: 13px;
-  font-weight: 600;
+.waking {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--texto-tenue);
 }
 
 .auth-footer {

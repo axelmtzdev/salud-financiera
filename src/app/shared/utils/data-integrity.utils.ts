@@ -9,7 +9,6 @@ import {
   MovementType,
   PendingMovement,
   RecurringPayment,
-  UserProfile,
   createEmptyData,
 } from '../models/finance.models';
 import { addYears, isValidIsoDate, todayIso } from './date.utils';
@@ -32,7 +31,7 @@ export interface SanitizeResult {
   discarded: number;
 }
 
-/** Valida y repara datos de origen no confiable (localStorage o un respaldo importado). */
+/** Valida y repara datos de origen no confiable (servidor, caché, un respaldo importado o lo que manda el cliente). */
 export function sanitizeAppData(raw: unknown): SanitizeResult {
   if (!isRecord(raw)) return { data: createEmptyData(), discarded: 0 };
 
@@ -52,7 +51,6 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
   return {
     data: {
       version: 1,
-      user: sanitizeUser(raw['user']),
       movements,
       categories: sanitizeCategories(raw['categories']),
       pending: sanitizeList(raw['pending'], sanitizePending).slice(-MAX_PENDING),
@@ -135,7 +133,7 @@ export function sanitizePending(raw: unknown): PendingMovement | null {
   };
 }
 
-function sanitizeRule(raw: unknown): MerchantRule | null {
+export function sanitizeRule(raw: unknown): MerchantRule | null {
   if (!isRecord(raw)) return null;
   const { pattern, label, type, category } = raw;
   if (!nonEmptyString(pattern) || !nonEmptyString(category)) return null;
@@ -169,19 +167,7 @@ export function sanitizeMovement(raw: unknown): Movement | null {
   };
 }
 
-function sanitizeUser(raw: unknown): UserProfile | null {
-  if (!isRecord(raw)) return null;
-  const { name, secretQuestion, secretAnswer, salt } = raw;
-  if (![name, secretQuestion, secretAnswer, salt].every(nonEmptyString)) return null;
-  return {
-    name: (name as string).trim(),
-    secretQuestion: (secretQuestion as string).trim(),
-    secretAnswer: secretAnswer as string,
-    salt: salt as string,
-  };
-}
-
-function sanitizeCategories(raw: unknown): CustomCategories {
+export function sanitizeCategories(raw: unknown): CustomCategories {
   const result: CustomCategories = { ingreso: [], egreso: [] };
   if (!isRecord(raw)) return result;
   for (const type of MOVEMENT_TYPES) {

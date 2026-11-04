@@ -159,7 +159,7 @@ export class FinanceService {
       recurring: has('recurring') ? data.recurring : current.recurring,
       recurringIgnored: has('recurringIgnored') ? data.recurringIgnored : current.recurringIgnored,
     }));
-    return ok ? { ok: true, count: kept.length } : { ok: false, error: 'No hay espacio suficiente en el navegador.' };
+    return ok ? { ok: true, count: kept.length } : { ok: false, error: 'Inicia sesión para restaurar el respaldo.' };
   }
 
   clearMovements(): boolean {

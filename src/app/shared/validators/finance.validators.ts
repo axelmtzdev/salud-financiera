@@ -37,6 +37,15 @@ export const FinanceValidators = {
     };
   },
 
+  /** Idéntico a otro control del mismo grupo (para confirmar contraseñas). */
+  sameAs(otherControlName: string): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const other = control.parent?.get(otherControlName);
+      if (!other || !control.value) return null;
+      return control.value === other.value ? null : { mismatch: true };
+    };
+  },
+
   /** Rechaza valores compuestos solo por espacios. */
   notBlank(control: AbstractControl): ValidationErrors | null {
     const value = control.value;

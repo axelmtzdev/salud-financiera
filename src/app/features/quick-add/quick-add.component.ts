@@ -1,24 +1,29 @@
 import { ChangeDetectionStrategy, Component, afterNextRender, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
+import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InboxService } from '../../core/services/inbox.service';
+import { StorageService } from '../../core/services/storage.service';
 import { MOVEMENT_TYPE_LABEL } from '../../shared/models/categories';
 import { PendingMovement } from '../../shared/models/finance.models';
 import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
 import { parseQuickAdd } from '../../shared/utils/quick-add.utils';
+import { takeInitialHash } from '../../core/initial-url';
+import { stashQuickAdd, takeStashedQuickAdd } from './quick-add-stash';
 
 type QuickAddState =
   | { kind: 'added'; item: PendingMovement; suggestion: string | null }
   | { kind: 'duplicate' }
   | { kind: 'invalid'; error: string }
-  | { kind: 'no-user' }
+  | { kind: 'saving' }
+  | { kind: 'login' }
   | { kind: 'empty' }
   | { kind: 'error' };
 
 /**
  * Recibe un cargo desde un atajo del iPhone: `/registro-rapido#monto=…&comercio=…&tarjeta=…`.
- * No pide sesión: deja el cargo en la bandeja y se confirma después, ya dentro de la app.
+ * Deja el cargo en la bandeja para confirmarlo después. Si no hay sesión, lo guarda y lo registra al iniciar sesión.
  */
 @Component({
   selector: 'app-quick-add',
@@ -61,11 +66,15 @@ type QuickAddState =
           <h1>No se pudo registrar</h1>
           <p class="lead">{{ invalidError() }} Revisa la URL que arma tu atajo; en Ajustes está la plantilla.</p>
         }
-        @case ('no-user') {
-          <h1>Esta app no está configurada aquí</h1>
+        @case ('saving') {
+          <h1>Guardando cargo…</h1>
+          <p class="lead">{{ api.waking() ? 'El servidor está despertando; puede tardar hasta un minuto.' : 'Un momento.' }}</p>
+        }
+        @case ('login') {
+          <h1>Inicia sesión para guardarlo</h1>
           <p class="lead">
-            El atajo abrió un navegador donde no has creado tu acceso. Tus datos viven en el navegador donde usas la app:
-            si la agregaste a la pantalla de inicio, el atajo debe abrir esa misma versión. No se guardó nada.
+            El atajo abrió un navegador donde no tienes sesión iniciada. Guardamos el cargo aquí y lo enviamos a tu bandeja en
+            cuanto entres (tienes 30 minutos).
           </p>
         }
         @case ('empty') {
@@ -74,13 +83,17 @@ type QuickAddState =
         }
         @case ('error') {
           <h1>No se pudo guardar</h1>
-          <p class="lead">El navegador rechazó el guardado. Revisa que tenga espacio y que permita guardar datos de este sitio.</p>
+          <p class="lead">No hubo conexión con el servidor. Revisa tu internet y vuelve a ejecutar el atajo.</p>
         }
       }
 
-      <a class="pc-boton pc-boton--grande pc-boton--bloque boton-primario-elevado" routerLink="/movimientos">
-        {{ state().kind === 'added' ? 'Revisar bandeja' : 'Abrir la app' }}
-      </a>
+      @if (state().kind === 'login') {
+        <a class="pc-boton pc-boton--grande pc-boton--bloque boton-primario-elevado" routerLink="/login">Iniciar sesión</a>
+      } @else if (state().kind !== 'saving') {
+        <a class="pc-boton pc-boton--grande pc-boton--bloque boton-primario-elevado" routerLink="/movimientos">
+          {{ state().kind === 'added' ? 'Revisar bandeja' : 'Abrir la app' }}
+        </a>
+      }
       @if (state().kind === 'added' && pendingCount() > 1) {
         <p class="auth-footer">Tienes {{ pendingCount() }} cargos por confirmar.</p>
       }
@@ -108,12 +121,19 @@ type QuickAddState =
 export class QuickAddComponent {
   private readonly inbox = inject(InboxService);
   private readonly auth = inject(AuthService);
+  private readonly storage = inject(StorageService);
+  protected readonly api = inject(ApiService);
 
   protected readonly typeLabel = MOVEMENT_TYPE_LABEL;
-  protected readonly state = signal<QuickAddState>(this.process());
+  protected readonly state = signal<QuickAddState>({ kind: 'saving' });
   protected readonly pendingCount = this.inbox.count;
 
   constructor() {
+    // Al abrirse desde el atajo se usa el fragmento original (ver initial-url); desde la app, el actual;
+    // después de iniciar sesión, el cargo que quedó guardado
+    const hash = takeInitialHash('/registro-rapido') || window.location.hash;
+    const fragment = hash.replace(/^#/, '') || takeStashedQuickAdd();
+    void this.process(fragment);
     // Quita los datos de la URL para que recargar la página no registre el cargo otra vez
     const router = inject(Router);
     afterNextRender(() => router.navigate(['/registro-rapido'], { replaceUrl: true }));
@@ -129,17 +149,24 @@ export class QuickAddComponent {
     return s.kind === 'invalid' ? s.error : '';
   }
 
-  private process(): QuickAddState {
-    const hash = window.location.hash;
-    if (!hash || hash === '#') return { kind: 'empty' };
-    if (!this.auth.isConfigured()) return { kind: 'no-user' };
+  private async process(fragment: string | null): Promise<void> {
+    this.state.set(await this.receive(fragment));
+  }
 
-    const parsed = parseQuickAdd(hash);
+  private async receive(fragment: string | null): Promise<QuickAddState> {
+    if (!fragment) return { kind: 'empty' };
+    const parsed = parseQuickAdd(fragment);
     if (!parsed.ok) return { kind: 'invalid', error: parsed.error };
+
+    await this.auth.whenReady();
+    if (!this.auth.isAuthenticated()) {
+      stashQuickAdd(fragment);
+      return { kind: 'login' };
+    }
 
     const result = this.inbox.receive(parsed.value);
     if (result.status === 'duplicate') return { kind: 'duplicate' };
-    if (result.status === 'error') return { kind: 'error' };
+    if (result.status === 'error' || !(await this.storage.flush())) return { kind: 'error' };
     return { kind: 'added', item: result.pending, suggestion: this.inbox.suggest(result.pending) };
   }
 }

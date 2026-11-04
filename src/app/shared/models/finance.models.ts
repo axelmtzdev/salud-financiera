@@ -16,12 +16,11 @@ export interface Movement {
 
 export type MovementInput = Omit<Movement, 'id' | 'createdAt'>;
 
-export interface UserProfile {
+/** Cuenta del usuario (vive en el servidor). */
+export interface Account {
+  id: string;
   name: string;
-  secretQuestion: string;
-  /** Hash SHA-256 (con salt) de la respuesta normalizada; nunca se guarda en texto plano. */
-  secretAnswer: string;
-  salt: string;
+  email: string;
 }
 
 export type CustomCategories = Record<MovementType, string[]>;
@@ -53,7 +52,6 @@ export interface MerchantRule {
 
 export interface AppData {
   version: 1;
-  user: UserProfile | null;
   movements: Movement[];
   categories: CustomCategories;
   /** Bandeja de cargos por confirmar */
@@ -136,5 +134,5 @@ export interface Insight {
 }
 
 export function createEmptyData(): AppData {
-  return { version: 1, user: null, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [] };
+  return { version: 1, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [] };
 }

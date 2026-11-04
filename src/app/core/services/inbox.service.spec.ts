@@ -2,7 +2,8 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { FinanceService } from './finance.service';
 import { InboxService } from './inbox.service';
-import { DATA_KEY } from './storage.service';
+import { ApiService } from './api.service';
+import { StorageService } from './storage.service';
 
 describe('InboxService', () => {
   let inbox: InboxService;
@@ -11,18 +12,21 @@ describe('InboxService', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const api = { post: async () => undefined, hasToken: () => true, onUnauthorized: null };
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), { provide: ApiService, useValue: api }] });
+    TestBed.inject(StorageService).open('u1');
     inbox = TestBed.inject(InboxService);
     finance = TestBed.inject(FinanceService);
   });
 
   afterAll(() => localStorage.clear());
 
-  it('guarda el cargo en la bandeja y descarta el duplicado inmediato', () => {
+  it('guarda el cargo en la bandeja y descarta el duplicado inmediato', async () => {
     expect(inbox.receive(cargo).status).toBe('added');
     expect(inbox.receive(cargo).status).toBe('duplicate');
     expect(inbox.count()).toBe(1);
-    expect(JSON.parse(localStorage.getItem(DATA_KEY)!).pending.length).toBe(1);
+    expect(await TestBed.inject(StorageService).flush()).toBeTrue();
+    expect(localStorage.getItem('salud-financiera.cache.u1')).toContain('OXXO Reforma');
   });
 
   it('al confirmar crea el movimiento, lo quita de la bandeja y recuerda la categoría', () => {

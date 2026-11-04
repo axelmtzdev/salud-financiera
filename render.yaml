@@ -1,0 +1,21 @@
+# Blueprint de Render: crea el servicio web de la API (carpeta server/).
+# La base de datos vive en Neon; su cadena de conexión se captura en el panel de Render.
+services:
+  - type: web
+    name: salud-financiera-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: server
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false

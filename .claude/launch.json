@@ -4,14 +4,35 @@
     {
       "name": "salud-financiera",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["ng", "serve", "--port", "4300"],
+      "runtimeArgs": [
+        "ng",
+        "serve",
+        "--port",
+        "4300"
+      ],
       "port": 4300
     },
     {
       "name": "salud-financiera-pruebas",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["ng", "serve", "--port", "4301"],
+      "runtimeArgs": [
+        "ng",
+        "serve",
+        "--port",
+        "4301"
+      ],
       "port": 4301
+    },
+    {
+      "name": "salud-financiera-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "server",
+        "run",
+        "dev"
+      ],
+      "port": 3000
     }
   ]
 }

@@ -53,8 +53,29 @@
 
 .usage { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .usage__row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; }
-.usage__track { height: 8px; border-radius: var(--radius-full); background: var(--muted); border: 1px solid var(--border-suave); overflow: hidden; }
-.usage__fill { height: 100%; min-width: 2px; background: var(--primary); border-radius: var(--radius-full); }
+
+.password-form {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-suave);
+
+  h3 { margin: 0; }
+}
+
+.legacy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  border: 1px solid var(--border-suave);
+
+  p { margin-top: 2px; }
+}
+
+.legacy__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .data-actions {
   display: grid;
@@ -71,4 +92,12 @@
   padding: 12px 0;
 
   & + & { border-top: 1px solid var(--border-suave); }
+}
+
+.danger-zone__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 240px;
+  min-width: 0;
 }

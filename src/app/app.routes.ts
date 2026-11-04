@@ -1,21 +1,22 @@
 import { Routes } from '@angular/router';
-import { authGuard, loginGuard, setupGuard } from './core/guards/auth.guards';
+import { authGuard, guestGuard } from './core/guards/auth.guards';
 
 export const routes: Routes = [
   {
-    path: 'bienvenida',
-    title: 'Configuración inicial · Salud Financiera',
-    canActivate: [setupGuard],
-    loadComponent: () => import('./features/auth/setup/setup.component').then((m) => m.SetupComponent),
+    path: 'registro',
+    title: 'Crear cuenta · Salud Financiera',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/register/register.component').then((m) => m.RegisterComponent),
   },
+  { path: 'bienvenida', redirectTo: 'registro' },
   {
     path: 'login',
     title: 'Iniciar sesión · Salud Financiera',
-    canActivate: [loginGuard],
+    canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/login/login.component').then((m) => m.LoginComponent),
   },
   {
-    // Sin guard: la abre el atajo del iPhone y solo deja el cargo en la bandeja
+    // Sin guard: la abre el atajo del iPhone; si no hay sesión guarda el cargo y lo registra después del login
     path: 'registro-rapido',
     title: 'Registro rápido · Salud Financiera',
     loadComponent: () => import('./features/quick-add/quick-add.component').then((m) => m.QuickAddComponent),
