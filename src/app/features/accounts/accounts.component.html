@@ -1,0 +1,162 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Cuentas</span>
+      <h1 class="page-title">Tu dinero disponible</h1>
+      <p class="page-subtitle">Cuánto tienes en efectivo y en tu cuenta, a partir de tu saldo inicial y de lo que registras.</p>
+    </div>
+  </header>
+
+  @if (accounts.balances(); as b) {
+    <section class="cuentas" aria-label="Saldo por cuenta">
+      <div class="cuenta cuenta--total tarjeta-elevada">
+        <span class="etiqueta">Saldo disponible</span>
+        <strong class="cuenta__saldo pc-num" [class.text-expense]="b.total < 0">{{ b.total | currencyFormat }}</strong>
+        <span class="cuenta__ayuda">Al día de hoy, {{ today | dateFormat: 'short' }}</span>
+      </div>
+      @for (kind of kinds; track kind) {
+        @let s = b[kind];
+        <div class="cuenta tarjeta-elevada">
+          <span class="etiqueta cuenta__nombre"><svg [lucideIcon]="icon[kind]" [size]="14" aria-hidden="true"></svg> {{ label[kind] }}</span>
+          <strong class="cuenta__saldo pc-num" [class.text-expense]="s.balance < 0">{{ s.balance | currencyFormat }}</strong>
+          <dl class="cuenta__detalle pc-num">
+            <div><dt>Saldo inicial</dt><dd>{{ s.opening | currencyFormat }}</dd></div>
+            <div><dt>Ingresos</dt><dd class="text-income">+{{ s.income | currencyFormat }}</dd></div>
+            <div><dt>Egresos</dt><dd class="text-expense">−{{ s.expense | currencyFormat }}</dd></div>
+            @if (s.transfersIn || s.transfersOut) {
+              <div><dt>Traspasos</dt><dd>{{ s.transfersIn - s.transfersOut >= 0 ? '+' : '−' }}{{ abs(s.transfersIn - s.transfersOut) | currencyFormat }}</dd></div>
+            }
+          </dl>
+        </div>
+      }
+    </section>
+  }
+
+  <div class="grid">
+    <app-card title="Saldo inicial" subtitle="Lo que tenías en cada cuenta al empezar el día elegido">
+      @if (editingOpening()) {
+        <form [formGroup]="openingForm" (ngSubmit)="saveOpening()" class="form-grid" novalidate>
+          <div class="field">
+            <label class="field-label" for="o-date">Fecha</label>
+            <input id="o-date" class="input" type="date" formControlName="date" [min]="minDate" [max]="today" />
+            @if (openingDateError(); as message) {
+              <span class="field-error">{{ message }}</span>
+            } @else {
+              <span class="field-hint">Cuentan los movimientos y traspasos desde este día, incluido.</span>
+            }
+          </div>
+          <div class="form-grid form-grid--2">
+            @for (kind of kinds; track kind) {
+              <div class="field">
+                <label class="field-label" [for]="'o-' + kind">{{ label[kind] }}</label>
+                <div class="input-group">
+                  <span class="input-prefix">$</span>
+                  <input [id]="'o-' + kind" class="input pc-num" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" [formControlName]="kind" />
+                </div>
+                @if (invalid(openingForm.controls[kind])) {
+                  <span class="field-error">Escribe un monto de 0 en adelante, con máximo 2 decimales.</span>
+                }
+              </div>
+            }
+          </div>
+          <div class="row-end">
+            @if (accounts.opening()) {
+              <button type="button" class="pc-boton pc-btn--ghost" (click)="editingOpening.set(false)">Cancelar</button>
+            }
+            <button type="submit" class="pc-boton boton-primario-elevado">
+              <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> Guardar saldo inicial
+            </button>
+          </div>
+        </form>
+      } @else if (accounts.opening(); as o) {
+        <dl class="inicial pc-num">
+          <div><dt class="etiqueta">Desde</dt><dd>{{ o.date | dateFormat: 'short' }}</dd></div>
+          @for (kind of kinds; track kind) {
+            <div><dt class="etiqueta">{{ shortLabel[kind] }}</dt><dd>{{ o[kind] | currencyFormat }}</dd></div>
+          }
+        </dl>
+        @if (accounts.movementsBeforeOpening(); as before) {
+          <p class="nota">
+            {{ before === 1 ? '1 movimiento es anterior' : before + ' movimientos son anteriores' }} a esta fecha y no cuenta{{ before === 1 ? '' : 'n' }} en el saldo.
+          </p>
+        }
+        <div class="row-end">
+          <button type="button" class="pc-boton boton-elevado" (click)="editOpening()">
+            <svg lucideIcon="pencil" [size]="14" aria-hidden="true"></svg> Cambiar
+          </button>
+        </div>
+      }
+    </app-card>
+
+    <app-card title="Traspasos" subtitle="Dinero que mueves entre efectivo y tu cuenta; no cuenta como gasto ni ingreso">
+      <form [formGroup]="transferForm" (ngSubmit)="addTransfer()" class="form-grid" novalidate>
+        <div class="field">
+          <span class="field-label" id="t-direction">Tipo</span>
+          <div class="segmented" role="radiogroup" aria-labelledby="t-direction">
+            @for (d of directions; track d.label; let i = $index) {
+              <button type="button" role="radio" [class.active]="direction() === i" [attr.aria-checked]="direction() === i" (click)="setDirection(i)">
+                {{ d.label }}
+              </button>
+            }
+          </div>
+          <span class="field-hint">
+            {{ directions[direction()].hint }}: sale de {{ label[directions[direction()].from] }} y entra a {{ label[directions[direction()].to] }}.
+          </span>
+        </div>
+        <div class="form-grid form-grid--2">
+          <div class="field">
+            <label class="field-label" for="t-amount">Monto</label>
+            <div class="input-group">
+              <span class="input-prefix">$</span>
+              <input id="t-amount" class="input pc-num" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" formControlName="amount" />
+            </div>
+            @if (invalid(transferForm.controls.amount)) {
+              <span class="field-error">Escribe un monto mayor a cero, con máximo 2 decimales.</span>
+            }
+          </div>
+          <div class="field">
+            <label class="field-label" for="t-date">Fecha</label>
+            <input id="t-date" class="input" type="date" formControlName="date" [min]="minDate" [max]="maxTransferDate" />
+            @if (invalid(transferForm.controls.date)) {
+              <span class="field-error">Elige una fecha.</span>
+            }
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="t-desc">Nota <span class="optional">(opcional)</span></label>
+          <input id="t-desc" class="input" formControlName="description" [maxlength]="descriptionMax" placeholder="Ej. Cajero de la oficina" />
+        </div>
+        <div class="row-end">
+          <button type="submit" class="pc-boton boton-primario-elevado">
+            <svg lucideIcon="arrow-left-right" [size]="14" aria-hidden="true"></svg> Registrar {{ directions[direction()].label.toLowerCase() }}
+          </button>
+        </div>
+      </form>
+
+      @if (accounts.transfers().length) {
+        <ul class="traspasos">
+          @for (t of visibleTransfers(); track t.id) {
+            <li>
+              <span class="traspaso__icono"><svg lucideIcon="arrow-left-right" [size]="14" aria-hidden="true"></svg></span>
+              <span class="traspaso__texto">
+                <strong>{{ transferLabel(t) }}</strong>
+                <span>{{ t.date | dateFormat: 'short' }} · {{ label[t.from] }} → {{ label[t.to] }}{{ t.description ? ' · ' + t.description : '' }}</span>
+              </span>
+              <strong class="traspaso__monto pc-num">{{ t.amount | currencyFormat }}</strong>
+              <button type="button" class="icon-btn icon-btn--danger" (click)="removeTransfer(t)" title="Eliminar traspaso" aria-label="Eliminar traspaso">
+                <svg lucideIcon="trash-2" [size]="15" aria-hidden="true"></svg>
+              </button>
+            </li>
+          }
+        </ul>
+        @if (accounts.transfers().length > visibleTransfers().length) {
+          <button type="button" class="pc-boton pc-btn--ghost" (click)="showAll.set(true)">
+            Ver los {{ accounts.transfers().length }} traspasos
+          </button>
+        }
+      } @else {
+        <p class="nota">Aún no registras traspasos. Úsalos cuando saques dinero del cajero o deposites efectivo.</p>
+      }
+    </app-card>
+  </div>
+</div>

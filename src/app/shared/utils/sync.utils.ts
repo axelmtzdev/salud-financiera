@@ -1,11 +1,11 @@
-import { AppData, CustomCategories, MOVEMENT_TYPES } from '../models/finance.models';
+import { AppData, CustomCategories, MOVEMENT_TYPES, OpeningBalance } from '../models/finance.models';
 import { normalizeText } from './text.utils';
 
 /**
  * Sincronización con el servidor. Lo comparten el frontend (calcula qué cambió) y el backend
  * (aplica los cambios), así ambos identifican cada registro con la misma clave.
  */
-export const COLLECTIONS = ['movements', 'pending', 'recurring', 'rules', 'budgets'] as const;
+export const COLLECTIONS = ['movements', 'pending', 'recurring', 'rules', 'budgets', 'transfers'] as const;
 export type Collection = (typeof COLLECTIONS)[number];
 export type ItemOf<C extends Collection> = AppData[C][number];
 
@@ -15,6 +15,8 @@ export interface DataChanges {
   remove: { [C in Collection]?: string[] };
   categories?: CustomCategories;
   recurringIgnored?: string[];
+  /** null = se quitó el saldo inicial */
+  opening?: OpeningBalance | null;
 }
 
 /** Clave única de un registro dentro de su colección. */
@@ -53,6 +55,7 @@ export function diffAppData(prev: AppData, next: AppData): DataChanges {
   }
   if (prev.categories !== next.categories) changes.categories = next.categories;
   if (prev.recurringIgnored !== next.recurringIgnored) changes.recurringIgnored = next.recurringIgnored;
+  if (prev.opening !== next.opening) changes.opening = next.opening;
   return changes;
 }
 
@@ -61,7 +64,8 @@ export function isEmptyChanges(changes: DataChanges): boolean {
     Object.keys(changes.upsert).length === 0 &&
     Object.keys(changes.remove).length === 0 &&
     changes.categories === undefined &&
-    changes.recurringIgnored === undefined
+    changes.recurringIgnored === undefined &&
+    changes.opening === undefined
   );
 }
 
@@ -86,6 +90,7 @@ export function mergeAppData(base: AppData, extra: AppData): AppData {
 
   const ignored = extra.recurringIgnored.filter((k) => !base.recurringIgnored.includes(k));
   if (ignored.length) merged.recurringIgnored = [...base.recurringIgnored, ...ignored];
+  if (!base.opening && extra.opening) merged.opening = extra.opening;
   return merged;
 }
 

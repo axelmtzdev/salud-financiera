@@ -63,6 +63,7 @@ Sin cambios: Netlify compila con `npm run build` (configuración de producción,
 | **Cuenta** | Registro con nombre, correo y contraseña; inicio y cierre de sesión. La sesión se mantiene en el dispositivo hasta 60 días sin uso. Si el navegador tenía datos de la versión anterior (solo locales), se ofrece subirlos a la cuenta sin duplicar. |
 | **Movimientos** | Resumen del mes, recomendación destacada, listado (más recientes primero) con filtros por tipo, categoría, rango de fechas y búsqueda por descripción. Ver detalle, editar y eliminar (con confirmación y opción **Deshacer**). |
 | **Registrar** | Ingreso/egreso con monto, categoría, fecha y descripción opcional. Categorías personalizadas (máx. 20 caracteres), validación y confirmación visual. "Guardar y agregar otro" para capturas en serie. |
+| **Cuentas** | Forma de pago en cada movimiento (efectivo o tarjeta/transferencia), saldo inicial por cuenta a una fecha y traspasos (retiros de cajero y depósitos) que no cuentan como gasto ni ingreso. Saldo disponible total y por cuenta en la pantalla principal; en Cuentas, cómo se llegó a cada saldo. Las tarjetas de crédito no son una cuenta: tendrán su propio módulo. |
 | **Presupuestos** | Tope mensual por categoría de egreso: gastado, disponible, nivel (en rango, ≥80 %, excedido) y marca de "lo esperado a la fecha". Proyección al cierre con tu historial (lo que sueles gastar después de este día del mes), así un pago fijo ya hecho no se proyecta de más. Sugerencia de montos con el promedio de los últimos 3 meses, gasto sin presupuesto, resumen en Movimientos y aviso al registrar un egreso. |
 | **Pagos recurrentes** | Pagos fijos y suscripciones (mensuales o anuales): próximos 30 días, estado del vencimiento (pagado, pendiente, vencido), compromiso mensual, total en suscripciones y "Marcar pagado". Se reconoce el pago si la descripción de un egreso contiene el texto del pago (también con los cargos del iPhone) a ±10 días del vencimiento. Avisa cambios de precio y detecta en el historial egresos que se repiten cada mes con monto parecido (en categorías de gasto variable, solo si el monto es prácticamente igual). |
 | **Análisis** | Selector de período (este mes, último mes, 3 y 6 meses, este año, personalizado). Totales, saldo neto y % de ahorro; recomendaciones automáticas; dona de egresos por categoría; barras ingresos vs egresos y línea de saldo neto (últimos 6 meses); tablas por categoría con top 3. |
@@ -86,7 +87,7 @@ Límites: la automatización de Cartera solo se dispara con pagos de **Apple Pay
 - **Mismas validaciones en ambos lados**: la API importa `data-integrity.utils` y `sync.utils` del frontend (esbuild los empaqueta), así que el servidor nunca guarda un registro que la app no aceptaría.
 - **Contraseñas**: hash `scrypt` con salt (módulo `crypto` de Node, sin dependencias nativas). Un login con correo inexistente tarda lo mismo que uno real, y el mensaje de error es el mismo, para no revelar qué correos existen. Máximo 10 intentos por minuto e IP.
 - **Sesiones**: token aleatorio en `Authorization: Bearer`; en la base solo se guarda su SHA-256. Se usa encabezado y no cookie porque Netlify y Render son dominios distintos y Safari bloquea cookies de terceros. Expira tras 60 días sin uso; cambiar la contraseña cierra las demás sesiones.
-- **Retención**: los movimientos con más de 2 años se eliminan automáticamente al cargar los datos.
+- **Retención**: los movimientos y traspasos con más de 2 años se eliminan automáticamente al cargar los datos. Si el saldo inicial es anterior, antes se recorre a la fecha de corte con el efecto de lo borrado, así el saldo de las cuentas no cambia.
 - **Gráficas en SVG propio** (sin librerías): con tooltip al pasar el cursor, leyenda y paleta categórica validada para daltonismo. Las categorías se colorean según su ranking histórico (el color no cambia al cambiar el período); a partir de la 8ª se agrupan en "Otras". Los egresos llevan textura rayada para no depender solo del color verde/rojo.
 - **Proyección a 12 meses**: promedio mensual del saldo neto del período (solo meses ya transcurridos) × 12.
 
@@ -130,9 +131,9 @@ server/
 
 ## Base de datos
 
-- `users`: correo (único, en minúsculas), nombre, hash de contraseña, categorías personalizadas y pagos detectados descartados.
+- `users`: correo (único, en minúsculas), nombre, hash de contraseña, categorías personalizadas, pagos detectados descartados y saldo inicial (`opening`).
 - `sessions`: hash del token, vencimiento y último uso.
-- `movements`: columnas tipadas (`amount numeric(14,2)`, `date date`), llave `(user_id, id)` e índice por fecha.
-- `user_items`: bandeja, pagos recurrentes, reglas por comercio y presupuestos como documentos JSON con llave `(user_id, kind, key)`.
+- `movements`: columnas tipadas (`amount numeric(14,2)`, `date date`, `account` efectivo/banco), llave `(user_id, id)` e índice por fecha.
+- `user_items`: bandeja, pagos recurrentes, reglas por comercio, presupuestos y traspasos como documentos JSON con llave `(user_id, kind, key)`.
 
 Las migraciones están en `server/src/db.ts`: se agregan al final de la lista y cada una se aplica una sola vez al arrancar.

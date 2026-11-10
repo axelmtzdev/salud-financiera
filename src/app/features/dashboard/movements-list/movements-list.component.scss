@@ -102,6 +102,7 @@
 .c-date { color: var(--texto-tenue); font-size: 12px; }
 .c-cat { display: flex; align-items: center; gap: 8px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-account { flex-shrink: 0; vertical-align: -2px; margin-right: 4px; color: var(--texto-tenue); }
 .c-actions { display: flex; justify-content: flex-end; gap: 2px; }
 
 .more { display: flex; justify-content: center; padding: 16px; border-top: 1px solid var(--divisor-tenue); }

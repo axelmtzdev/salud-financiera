@@ -14,10 +14,11 @@ import { MovementsListComponent } from './movements-list/movements-list.componen
 import { PendingInboxComponent } from './pending-inbox/pending-inbox.component';
 import { BudgetSummaryComponent } from '../budgets/budget-summary.component';
 import { UpcomingSummaryComponent } from '../recurring/upcoming-summary.component';
+import { BalanceSummaryComponent } from '../accounts/balance-summary.component';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, LucideDynamicIcon, CardComponent, StatTileComponent, InsightsComponent, MovementsListComponent, PendingInboxComponent, BudgetSummaryComponent, UpcomingSummaryComponent],
+  imports: [RouterLink, LucideDynamicIcon, CardComponent, StatTileComponent, BalanceSummaryComponent, InsightsComponent, MovementsListComponent, PendingInboxComponent, BudgetSummaryComponent, UpcomingSummaryComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -35,6 +36,8 @@ import { UpcomingSummaryComponent } from '../recurring/upcoming-summary.componen
       </header>
 
       <app-pending-inbox />
+
+      <app-balance-summary />
 
       <section class="stats-grid" aria-label="Resumen del mes">
         <app-stat-tile label="Ingresos del mes" [value]="fmt(summary().income)" tone="income" />

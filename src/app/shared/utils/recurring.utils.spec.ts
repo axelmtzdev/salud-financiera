@@ -20,6 +20,7 @@ const mv = (category: string, amount: number, date: string, description: string,
   amount,
   date,
   description,
+  account: 'banco',
   createdAt: new Date(2026, 0, 1, 0, 0, seq).toISOString(),
 });
 

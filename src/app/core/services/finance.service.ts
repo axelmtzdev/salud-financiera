@@ -116,7 +116,7 @@ export class FinanceService {
   }
 
   exportJson(): string {
-    const { movements, categories, rules, budgets, recurring, recurringIgnored } = this.storage.state();
+    const { movements, categories, rules, budgets, recurring, recurringIgnored, transfers, opening } = this.storage.state();
     return JSON.stringify(
       {
         app: 'salud-financiera',
@@ -127,6 +127,8 @@ export class FinanceService {
         budgets,
         recurring,
         recurringIgnored,
+        transfers,
+        opening,
       },
       null,
       2,
@@ -134,7 +136,7 @@ export class FinanceService {
   }
 
   /**
-   * Reemplaza movimientos, categorías, reglas, presupuestos y pagos recurrentes con un respaldo JSON.
+   * Reemplaza movimientos, categorías, reglas, presupuestos, pagos recurrentes, traspasos y saldo inicial con un respaldo JSON.
    * El usuario y la bandeja actuales se conservan; lo opcional, solo si el respaldo no lo trae.
    */
   importJson(text: string): ImportResult {
@@ -158,6 +160,8 @@ export class FinanceService {
       budgets: has('budgets') ? data.budgets : current.budgets,
       recurring: has('recurring') ? data.recurring : current.recurring,
       recurringIgnored: has('recurringIgnored') ? data.recurringIgnored : current.recurringIgnored,
+      transfers: has('transfers') ? data.transfers : current.transfers,
+      opening: 'opening' in (parsed as Record<string, unknown>) ? data.opening : current.opening,
     }));
     return ok ? { ok: true, count: kept.length } : { ok: false, error: 'Inicia sesión para restaurar el respaldo.' };
   }
@@ -173,6 +177,7 @@ export class FinanceService {
       amount: round2(input.amount),
       date: input.date,
       description: collapseSpaces(input.description ?? ''),
+      account: input.account,
     };
   }
 }

@@ -1,10 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { RETENTION_YEARS } from '../../../src/app/shared/models/categories';
 import { AppData, CustomCategories, Movement } from '../../../src/app/shared/models/finance.models';
-import { sanitizeAppData } from '../../../src/app/shared/utils/data-integrity.utils';
+import { rollOpeningForward } from '../../../src/app/shared/utils/accounts.utils';
+import { sanitizeAppData, sanitizeOpening } from '../../../src/app/shared/utils/data-integrity.utils';
 import { addYears, todayIso } from '../../../src/app/shared/utils/date.utils';
 import { COLLECTIONS, Collection, DataChanges, itemKey } from '../../../src/app/shared/utils/sync.utils';
-import type { Queryable } from '../db.js';
+import type { Db, Queryable } from '../db.js';
 
 /** Colecciones que se guardan como documentos en `user_items`. */
 const ITEM_COLLECTIONS = COLLECTIONS.filter((c): c is Exclude<Collection, 'movements'> => c !== 'movements');
@@ -28,15 +29,22 @@ const changesSchema = {
     },
     categories: { type: 'object' },
     recurringIgnored: { type: 'array', maxItems: 1_000 },
+    opening: { type: ['object', 'null'] },
   },
 } as const;
+
+const MOVEMENT_COLUMNS = `id, type, category, amount, to_char(date, 'YYYY-MM-DD') AS date, description, account,
+  to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt"`;
+
+type MovementRow = Omit<Movement, 'amount'> & { amount: string | number };
+const toMovement = (m: MovementRow) => ({ ...m, amount: Number(m.amount) });
 
 export async function dataRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
 
   app.get('/', async (request) => {
     const userId = request.account!.id;
-    const purged = await purgeOldMovements(app.db, userId);
+    const purged = await purgeOldData(app.db, userId);
     return { data: await loadData(app.db, userId), purged };
   });
 
@@ -46,31 +54,55 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
   });
 }
 
-/** Mismo criterio que tenía la app local: se conservan 2 años de movimientos. */
-async function purgeOldMovements(db: Queryable, userId: string): Promise<number> {
-  const { rows } = await db.query<{ count: string | number }>(
-    `WITH deleted AS (DELETE FROM movements WHERE user_id = $1 AND date < $2 RETURNING 1) SELECT count(*) AS count FROM deleted`,
-    [userId, addYears(todayIso(), -RETENTION_YEARS)],
-  );
-  return Number(rows[0]?.count ?? 0);
+/**
+ * Se conservan 2 años de movimientos y traspasos. Si el saldo inicial es anterior, primero se lleva
+ * a la fecha de corte con el efecto de lo que se borra, para que el saldo de las cuentas no cambie.
+ */
+export async function purgeOldData(db: Db, userId: string, today = todayIso()): Promise<number> {
+  const cutoff = addYears(today, -RETENTION_YEARS);
+  return db.transaction(async (tx) => {
+    const user = await tx.query<{ opening: unknown }>('SELECT opening FROM users WHERE id = $1 FOR UPDATE', [userId]);
+    const opening = sanitizeOpening(user.rows[0]?.opening);
+    if (opening && opening.date < cutoff) {
+      const [movements, transfers] = await Promise.all([
+        tx.query<MovementRow>(`SELECT ${MOVEMENT_COLUMNS} FROM movements WHERE user_id = $1 AND date >= $2 AND date < $3`, [
+          userId,
+          opening.date,
+          cutoff,
+        ]),
+        tx.query<{ data: unknown }>(
+          `SELECT data FROM user_items WHERE user_id = $1 AND kind = 'transfers' AND data->>'date' < $2`,
+          [userId, cutoff],
+        ),
+      ]);
+      const old = sanitizeAppData({ movements: movements.rows.map(toMovement), transfers: transfers.rows.map((r) => r.data) }).data;
+      const rolled = rollOpeningForward(opening, old.movements, old.transfers, cutoff);
+      await tx.query('UPDATE users SET opening = $2::jsonb WHERE id = $1', [userId, JSON.stringify(rolled)]);
+    }
+    await tx.query(`DELETE FROM user_items WHERE user_id = $1 AND kind = 'transfers' AND data->>'date' < $2`, [userId, cutoff]);
+    const { rows } = await tx.query<{ count: string | number }>(
+      `WITH deleted AS (DELETE FROM movements WHERE user_id = $1 AND date < $2 RETURNING 1) SELECT count(*) AS count FROM deleted`,
+      [userId, cutoff],
+    );
+    return Number(rows[0]?.count ?? 0);
+  });
 }
 
 export async function loadData(db: Queryable, userId: string): Promise<AppData> {
   const [movements, items, user] = await Promise.all([
-    db.query<Omit<Movement, 'amount'> & { amount: string | number }>(
-      `SELECT id, type, category, amount, to_char(date, 'YYYY-MM-DD') AS date, description,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt"
-         FROM movements WHERE user_id = $1`,
+    db.query<MovementRow>(`SELECT ${MOVEMENT_COLUMNS} FROM movements WHERE user_id = $1`, [userId]),
+    db.query<{ kind: string; data: unknown }>('SELECT kind, data FROM user_items WHERE user_id = $1 ORDER BY updated_at, key', [userId]),
+    db.query<{ categories: unknown; recurring_ignored: unknown; opening: unknown }>(
+      'SELECT categories, recurring_ignored, opening FROM users WHERE id = $1',
       [userId],
     ),
-    db.query<{ kind: string; data: unknown }>('SELECT kind, data FROM user_items WHERE user_id = $1 ORDER BY updated_at, key', [userId]),
-    db.query<{ categories: unknown; recurring_ignored: unknown }>('SELECT categories, recurring_ignored FROM users WHERE id = $1', [userId]),
   ]);
 
   const raw: Record<string, unknown> = {
-    movements: movements.rows.map((m) => ({ ...m, amount: Number(m.amount) })),
+    movements: movements.rows.map(toMovement),
     categories: user.rows[0]?.categories,
     recurringIgnored: user.rows[0]?.recurring_ignored,
+    opening: user.rows[0]?.opening,
   };
   for (const kind of ITEM_COLLECTIONS) raw[kind] = items.rows.filter((r) => r.kind === kind).map((r) => r.data);
   return sanitizeAppData(raw).data;
@@ -82,6 +114,7 @@ export async function applyChanges(db: Queryable, userId: string, changes: DataC
     ...changes.upsert,
     categories: changes.categories,
     recurringIgnored: changes.recurringIgnored,
+    opening: changes.opening,
   }).data;
 
   const removedMovements = changes.remove.movements ?? [];
@@ -97,13 +130,13 @@ export async function applyChanges(db: Queryable, userId: string, changes: DataC
 
   if (clean.movements.length) {
     await db.query(
-      `INSERT INTO movements (user_id, id, type, category, amount, date, description, created_at)
-       SELECT $1, m.id, m.type, m.category, m.amount, m.date, m.description, m."createdAt"
+      `INSERT INTO movements (user_id, id, type, category, amount, date, description, account, created_at)
+       SELECT $1, m.id, m.type, m.category, m.amount, m.date, m.description, m.account, m."createdAt"
          FROM jsonb_to_recordset($2::jsonb)
-           AS m(id text, type text, category text, amount numeric, date date, description text, "createdAt" timestamptz)
+           AS m(id text, type text, category text, amount numeric, date date, description text, account text, "createdAt" timestamptz)
        ON CONFLICT (user_id, id) DO UPDATE SET
          type = EXCLUDED.type, category = EXCLUDED.category, amount = EXCLUDED.amount,
-         date = EXCLUDED.date, description = EXCLUDED.description, updated_at = now()`,
+         date = EXCLUDED.date, description = EXCLUDED.description, account = EXCLUDED.account, updated_at = now()`,
       [userId, JSON.stringify(clean.movements)],
     );
   }
@@ -121,6 +154,10 @@ export async function applyChanges(db: Queryable, userId: string, changes: DataC
 
   if (changes.categories !== undefined) {
     await db.query('UPDATE users SET categories = $2::jsonb WHERE id = $1', [userId, JSON.stringify(clean.categories satisfies CustomCategories)]);
+  }
+  if (changes.opening !== undefined) {
+    // Un saldo inicial inválido se guarda como "sin saldo inicial"
+    await db.query('UPDATE users SET opening = $2::jsonb WHERE id = $1', [userId, JSON.stringify(clean.opening)]);
   }
   if (changes.recurringIgnored !== undefined) {
     await db.query('UPDATE users SET recurring_ignored = $2::jsonb WHERE id = $1', [userId, JSON.stringify(clean.recurringIgnored)]);

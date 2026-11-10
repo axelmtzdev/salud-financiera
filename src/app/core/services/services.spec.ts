@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Account } from '../../shared/models/finance.models';
 import { DataChanges } from '../../shared/utils/sync.utils';
+import { AccountsService } from './accounts.service';
 import { ApiError, ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { FinanceService } from './finance.service';
@@ -108,7 +109,7 @@ describe('Servicios', () => {
 
   describe('StorageService', () => {
     it('sin sesión no acepta cambios', () => {
-      expect(TestBed.inject(FinanceService).add({ type: 'egreso', category: 'X', amount: 1, date: today, description: '' })).toBeNull();
+      expect(TestBed.inject(FinanceService).add({ type: 'egreso', category: 'X', amount: 1, date: today, description: '', account: 'banco' })).toBeNull();
     });
 
     it('envía solo lo que cambió y revierte si el servidor falla', async () => {
@@ -116,7 +117,7 @@ describe('Servicios', () => {
       const finance = TestBed.inject(FinanceService);
       const storage = TestBed.inject(StorageService);
 
-      const m = finance.add({ type: 'egreso', category: 'Vivienda', amount: 100, date: today, description: 'Renta' })!;
+      const m = finance.add({ type: 'egreso', category: 'Vivienda', amount: 100, date: today, description: 'Renta', account: 'banco' })!;
       expect(await storage.flush()).toBeTrue();
       expect(api.sent.at(-1)).toEqual({ upsert: { movements: [m] }, remove: {} });
 
@@ -156,6 +157,33 @@ describe('Servicios', () => {
     });
   });
 
+  describe('AccountsService', () => {
+    it('calcula el saldo con el saldo inicial, los movimientos y los traspasos, y los envía al servidor', async () => {
+      await loggedIn();
+      const accounts = TestBed.inject(AccountsService);
+      const finance = TestBed.inject(FinanceService);
+      const storage = TestBed.inject(StorageService);
+      expect(accounts.balances()).toBeNull();
+
+      accounts.setOpening({ date: today, efectivo: 200, banco: 1000 });
+      finance.add({ type: 'egreso', category: 'Alimentación', amount: 50, date: today, description: '', account: 'efectivo' });
+      const transfer = accounts.addTransfer({ from: 'banco', to: 'efectivo', amount: 300, date: today, description: ' Cajero ' })!;
+      expect(await storage.flush()).toBeTrue();
+
+      expect(accounts.balances()?.efectivo.balance).toBe(450);
+      expect(accounts.balances()?.banco.balance).toBe(700);
+      expect(accounts.balances()?.total).toBe(1150);
+      expect(transfer.description).toBe('Cajero');
+      expect(api.sent.some((c) => c.opening?.banco === 1000)).toBeTrue();
+      expect(api.sent.at(-1)?.upsert.transfers).toEqual([transfer]);
+
+      const removed = accounts.removeTransfer(transfer.id)!;
+      expect(accounts.balances()?.efectivo.balance).toBe(150);
+      accounts.restoreTransfer(removed);
+      expect(accounts.balances()?.efectivo.balance).toBe(450);
+    });
+  });
+
   describe('FinanceService', () => {
     beforeEach(async () => {
       await loggedIn();
@@ -163,7 +191,7 @@ describe('Servicios', () => {
 
     it('agrega, actualiza, elimina y restaura movimientos', () => {
       const finance = TestBed.inject(FinanceService);
-      const m = finance.add({ type: 'egreso', category: 'Vivienda', amount: 100.005, date: today, description: '  Renta  ' });
+      const m = finance.add({ type: 'egreso', category: 'Vivienda', amount: 100.005, date: today, description: '  Renta  ', account: 'banco' });
       expect(m).not.toBeNull();
       expect(finance.movements()[0].amount).toBe(100.01);
       expect(finance.movements()[0].description).toBe('Renta');

@@ -5,8 +5,8 @@ import { ConfirmService } from '../../../core/services/confirm.service';
 import { FinanceService } from '../../../core/services/finance.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { EMPTY_FILTERS, MovementFilters, UiStateService } from '../../../core/services/ui-state.service';
-import { MOVEMENT_TYPE_LABEL } from '../../../shared/models/categories';
-import { Movement } from '../../../shared/models/finance.models';
+import { ACCOUNT_ICON, ACCOUNT_LABEL, MOVEMENT_TYPE_LABEL } from '../../../shared/models/categories';
+import { ACCOUNT_KINDS, Movement } from '../../../shared/models/finance.models';
 import { CurrencyFormatPipe } from '../../../shared/pipes/currency-format.pipe';
 import { DateFormatPipe } from '../../../shared/pipes/date-format.pipe';
 import { summarize } from '../../../shared/utils/analytics.utils';
@@ -29,6 +29,9 @@ export class MovementsListComponent {
   private readonly toast = inject(ToastService);
 
   protected readonly typeLabel = MOVEMENT_TYPE_LABEL;
+  protected readonly accounts = ACCOUNT_KINDS;
+  protected readonly accountLabel = ACCOUNT_LABEL;
+  protected readonly accountIcon = ACCOUNT_ICON;
   protected readonly filters = this.ui.filters;
   protected readonly page = signal(1);
   protected readonly showFilters = signal(false);
@@ -54,6 +57,7 @@ export class MovementsListComponent {
       (m) =>
         (f.type === 'all' || m.type === f.type) &&
         (f.category === 'all' || m.category === f.category) &&
+        (f.account === 'all' || m.account === f.account) &&
         (!f.from || m.date >= f.from) &&
         (!f.to || m.date <= f.to) &&
         (!query || normalizeText(m.description).includes(query)),

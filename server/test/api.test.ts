@@ -3,6 +3,7 @@ import { after, before, describe, it } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { Db, createDb, migrate } from '../src/db.js';
+import { loadData, purgeOldData } from '../src/routes/data.js';
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -188,6 +189,53 @@ describe('datos', () => {
     assert.equal((await call('POST', '/api/data/changes', token, { upsert: { movements: 'x' }, remove: {} })).statusCode, 400);
     assert.equal((await call('POST', '/api/data/changes', token, { upsert: {} })).statusCode, 400);
     assert.equal((await call('POST', '/api/data/changes', token, { upsert: { usuarios: [{}] }, remove: {} })).statusCode, 204);
+  });
+});
+
+describe('cuentas', () => {
+  it('guarda forma de pago, traspasos y saldo inicial (y permite quitarlo)', async () => {
+    const { token } = await register('ines@correo.mx');
+    await call('POST', '/api/data/changes', token, {
+      upsert: {
+        movements: [
+          { id: 'e', type: 'egreso', category: 'Comida', amount: 80, date: today, account: 'efectivo' },
+          { id: 'sin', type: 'egreso', category: 'Comida', amount: 80, date: today },
+        ],
+        transfers: [{ id: 't1', from: 'banco', to: 'efectivo', amount: 500, date: today }],
+      },
+      remove: {},
+      opening: { date: today, efectivo: 100, banco: 2000 },
+    });
+    let data = (await call('GET', '/api/data', token)).json().data;
+    assert.deepEqual(data.movements.map((m: { id: string; account: string }) => [m.id, m.account]).sort(), [['e', 'efectivo'], ['sin', 'banco']]);
+    assert.equal(data.transfers[0].amount, 500);
+    assert.deepEqual(data.opening, { date: today, efectivo: 100, banco: 2000 });
+
+    await call('POST', '/api/data/changes', token, { upsert: {}, remove: { transfers: ['t1'] }, opening: null });
+    data = (await call('GET', '/api/data', token)).json().data;
+    assert.equal(data.transfers.length, 0);
+    assert.equal(data.opening, null);
+  });
+
+  it('al borrar lo de más de 2 años lleva el saldo inicial a la fecha de corte sin cambiar el saldo', async () => {
+    const { token, user } = await register('juan@correo.mx');
+    await call('POST', '/api/data/changes', token, {
+      upsert: {
+        movements: [
+          { id: 'viejo', type: 'egreso', category: 'X', amount: 100, date: '2024-01-10', account: 'banco' },
+          { id: 'nuevo', type: 'ingreso', category: 'X', amount: 10, date: '2026-03-01', account: 'efectivo' },
+        ],
+        transfers: [{ id: 'tv', from: 'banco', to: 'efectivo', amount: 200, date: '2024-02-01' }],
+      },
+      remove: {},
+      opening: { date: '2024-01-01', efectivo: 50, banco: 1000 },
+    });
+
+    assert.equal(await purgeOldData(db, user.id, '2026-03-20'), 1);
+    const data = await loadData(db, user.id);
+    assert.deepEqual(data.opening, { date: '2024-03-20', efectivo: 250, banco: 700 });
+    assert.deepEqual(data.movements.map((m) => m.id), ['nuevo']);
+    assert.equal(data.transfers.length, 0);
   });
 });
 

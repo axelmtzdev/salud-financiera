@@ -31,7 +31,7 @@ describe('data-integrity.utils', () => {
   });
 
   it('purga movimientos con más de 2 años', () => {
-    const base = { type: 'egreso' as const, category: 'A', amount: 1, description: '', createdAt: '' };
+    const base = { type: 'egreso' as const, category: 'A', amount: 1, description: '', account: 'banco' as const, createdAt: '' };
     const { kept, removed } = purgeOldMovements(
       [
         { ...base, id: '1', date: '2024-10-05' },

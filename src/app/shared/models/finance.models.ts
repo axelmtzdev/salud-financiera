@@ -2,6 +2,11 @@ export type MovementType = 'ingreso' | 'egreso';
 
 export const MOVEMENT_TYPES: readonly MovementType[] = ['ingreso', 'egreso'];
 
+/** De dónde sale o a dónde entra el dinero. Las tarjetas de crédito no son una cuenta: tendrán su propio módulo. */
+export type AccountKind = 'efectivo' | 'banco';
+
+export const ACCOUNT_KINDS: readonly AccountKind[] = ['efectivo', 'banco'];
+
 export interface Movement {
   id: string;
   type: MovementType;
@@ -10,8 +15,30 @@ export interface Movement {
   /** Fecha local en formato YYYY-MM-DD */
   date: string;
   description: string;
+  /** Forma de pago: efectivo o tarjeta de débito/transferencia */
+  account: AccountKind;
   /** ISO timestamp */
   createdAt: string;
+}
+
+/** Dinero que pasa de una cuenta a otra (retiro de cajero, depósito de efectivo). No es ingreso ni egreso. */
+export interface Transfer {
+  id: string;
+  from: AccountKind;
+  to: AccountKind;
+  amount: number;
+  /** YYYY-MM-DD */
+  date: string;
+  description: string;
+  createdAt: string;
+}
+
+/** Cuánto había en cada cuenta al cierre del día anterior a `date`; desde ese día cuentan los movimientos. */
+export interface OpeningBalance {
+  /** YYYY-MM-DD */
+  date: string;
+  efectivo: number;
+  banco: number;
 }
 
 export type MovementInput = Omit<Movement, 'id' | 'createdAt'>;
@@ -63,6 +90,10 @@ export interface AppData {
   recurring: RecurringPayment[];
   /** Claves de pagos detectados que el usuario descartó (para no volver a sugerirlos) */
   recurringIgnored: string[];
+  /** Traspasos entre efectivo y tarjeta/transferencia */
+  transfers: Transfer[];
+  /** Saldo inicial de las cuentas; null mientras el usuario no lo captura */
+  opening: OpeningBalance | null;
 }
 
 export type RecurringFrequency = 'mensual' | 'anual';
@@ -134,5 +165,5 @@ export interface Insight {
 }
 
 export function createEmptyData(): AppData {
-  return { version: 1, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [] };
+  return { version: 1, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [], transfers: [], opening: null };
 }

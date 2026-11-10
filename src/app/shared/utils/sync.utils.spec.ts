@@ -8,6 +8,7 @@ const mv = (id: string, amount = 10): Movement => ({
   amount,
   date: '2026-10-01',
   description: '',
+  account: 'banco',
   createdAt: '2026-10-01T00:00:00.000Z',
 });
 

@@ -4,7 +4,7 @@ import { LucideDynamicIcon } from '@lucide/angular';
 import { ConfirmService } from '../../../core/services/confirm.service';
 import { FinanceService } from '../../../core/services/finance.service';
 import { ToastService } from '../../../core/services/toast.service';
-import { MOVEMENT_TYPE_LABEL } from '../../../shared/models/categories';
+import { ACCOUNT_ICON, ACCOUNT_LABEL, MOVEMENT_TYPE_LABEL } from '../../../shared/models/categories';
 import { CurrencyFormatPipe } from '../../../shared/pipes/currency-format.pipe';
 import { DateFormatPipe } from '../../../shared/pipes/date-format.pipe';
 import { monthKey, monthLabel } from '../../../shared/utils/date.utils';
@@ -39,6 +39,10 @@ import { formatCurrency, formatPercent } from '../../../shared/utils/format.util
             <div>
               <dt class="etiqueta">Categoría</dt>
               <dd><span class="punto" [style.background]="finance.colorOf(m.type, m.category)"></span>{{ m.category }}</dd>
+            </div>
+            <div>
+              <dt class="etiqueta">Forma de pago</dt>
+              <dd><svg [lucideIcon]="accountIcon[m.account]" [size]="14" aria-hidden="true"></svg> {{ accountLabel[m.account] }}</dd>
             </div>
             <div>
               <dt class="etiqueta">Registrado</dt>
@@ -129,6 +133,8 @@ export class MovementDetailComponent {
   private readonly router = inject(Router);
 
   protected readonly typeLabel = MOVEMENT_TYPE_LABEL;
+  protected readonly accountLabel = ACCOUNT_LABEL;
+  protected readonly accountIcon = ACCOUNT_ICON;
 
   protected readonly movement = computed(() => this.finance.movements().find((m) => m.id === this.id()));
 

@@ -9,12 +9,14 @@ import { ToastService } from '../../../core/services/toast.service';
 import { CardComponent } from '../../../shared/components/card/card.component';
 import { AutofocusDirective } from '../../../shared/directives/autofocus.directive';
 import {
+  ACCOUNT_ICON,
+  ACCOUNT_LABEL,
   CATEGORY_MAX_LENGTH,
   DESCRIPTION_MAX_LENGTH,
   MOVEMENT_TYPE_LABEL,
   RETENTION_YEARS,
 } from '../../../shared/models/categories';
-import { MovementInput, MovementType } from '../../../shared/models/finance.models';
+import { ACCOUNT_KINDS, AccountKind, MovementInput, MovementType } from '../../../shared/models/finance.models';
 import { addYears, todayIso } from '../../../shared/utils/date.utils';
 import { formatCurrency } from '../../../shared/utils/format.utils';
 import { FinanceValidators } from '../../../shared/validators/finance.validators';
@@ -38,6 +40,9 @@ export class MovementFormComponent implements OnInit {
   private readonly router = inject(Router);
 
   protected readonly typeLabel = MOVEMENT_TYPE_LABEL;
+  protected readonly accounts = ACCOUNT_KINDS;
+  protected readonly accountLabel = ACCOUNT_LABEL;
+  protected readonly accountIcon = ACCOUNT_ICON;
   protected readonly categoryMax = CATEGORY_MAX_LENGTH;
   protected readonly descriptionMax = DESCRIPTION_MAX_LENGTH;
   protected readonly minDate = addYears(todayIso(), -RETENTION_YEARS);
@@ -71,6 +76,7 @@ export class MovementFormComponent implements OnInit {
       ],
     }),
     description: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(DESCRIPTION_MAX_LENGTH)] }),
+    account: new FormControl<AccountKind>('banco', { nonNullable: true }),
   });
 
   protected readonly newCategory = new FormControl('', {
@@ -79,6 +85,7 @@ export class MovementFormComponent implements OnInit {
   });
 
   protected readonly type = toSignal(this.form.controls.type.valueChanges, { initialValue: this.form.controls.type.value });
+  protected readonly account = toSignal(this.form.controls.account.valueChanges, { initialValue: this.form.controls.account.value });
   protected readonly descriptionLength = toSignal(this.form.controls.description.valueChanges, { initialValue: '' });
 
   protected readonly categoryOptions = computed(() => {
@@ -111,11 +118,16 @@ export class MovementFormComponent implements OnInit {
       category: movement.category,
       date: movement.date,
       description: movement.description,
+      account: movement.account,
     });
   }
 
   protected setType(type: MovementType): void {
     this.form.controls.type.setValue(type);
+  }
+
+  protected setAccount(account: AccountKind): void {
+    this.form.controls.account.setValue(account);
   }
 
   protected error(name: 'amount' | 'category' | 'date' | 'description'): string | null {
@@ -193,8 +205,8 @@ export class MovementFormComponent implements OnInit {
     this.notifySaved(`${label} registrado`, input);
 
     if (addAnother) {
-      // Conserva tipo, categoría y fecha para capturas en serie
-      this.form.reset({ type: input.type, amount: null, category: input.category, date: input.date, description: '' });
+      // Conserva tipo, categoría, fecha y forma de pago para capturas en serie
+      this.form.reset({ type: input.type, amount: null, category: input.category, date: input.date, description: '', account: input.account });
       this.justSaved.set(true);
       setTimeout(() => this.justSaved.set(false), 1600);
     } else {

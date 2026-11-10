@@ -96,6 +96,11 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (user_id, kind, key)
   );
   `,
+  // Forma de pago (los movimientos existentes quedan como tarjeta/transferencia) y saldo inicial
+  `
+  ALTER TABLE movements ADD COLUMN account text NOT NULL DEFAULT 'banco' CHECK (account IN ('efectivo', 'banco'));
+  ALTER TABLE users ADD COLUMN opening jsonb;
+  `,
 ];
 
 export async function migrate(db: Db): Promise<void> {

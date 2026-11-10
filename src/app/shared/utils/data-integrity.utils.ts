@@ -1,5 +1,7 @@
 import { CATEGORY_MAX_LENGTH, DEFAULT_CATEGORIES, DESCRIPTION_MAX_LENGTH } from '../models/categories';
 import {
+  ACCOUNT_KINDS,
+  AccountKind,
   AppData,
   Budget,
   CustomCategories,
@@ -8,7 +10,9 @@ import {
   MOVEMENT_TYPES,
   MovementType,
   PendingMovement,
+  OpeningBalance,
   RecurringPayment,
+  Transfer,
   createEmptyData,
 } from '../models/finance.models';
 import { addYears, isValidIsoDate, todayIso } from './date.utils';
@@ -60,9 +64,46 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
       recurringIgnored: Array.isArray(raw['recurringIgnored'])
         ? [...new Set(raw['recurringIgnored'].filter(nonEmptyString).map((k) => normalizeText(k).slice(0, 80)))]
         : [],
+      transfers: sanitizeList(raw['transfers'], sanitizeTransfer),
+      opening: sanitizeOpening(raw['opening']),
     },
     discarded,
   };
+}
+
+const isAccount = (value: unknown): value is AccountKind => ACCOUNT_KINDS.includes(value as AccountKind);
+const validTimestamp = (value: unknown): string =>
+  typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : new Date().toISOString();
+
+export function sanitizeTransfer(raw: unknown): Transfer | null {
+  if (!isRecord(raw)) return null;
+  const { id, from, to, amount, date, description, createdAt } = raw;
+  if (!isAccount(from) || !isAccount(to) || from === to) return null;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) return null;
+  if (!isValidIsoDate(date)) return null;
+  return {
+    id: nonEmptyString(id) ? id : uuid(),
+    from,
+    to,
+    amount: round2(amount),
+    date,
+    description: typeof description === 'string' ? collapseSpaces(description).slice(0, DESCRIPTION_MAX_LENGTH) : '',
+    createdAt: validTimestamp(createdAt),
+  };
+}
+
+/**
+ * Saldo inicial con fecha válida. Puede ser negativo: al recorrerlo hacia adelante (ver
+ * `rollOpeningForward`) una cuenta con más gastos registrados que dinero queda en negativo.
+ */
+export function sanitizeOpening(raw: unknown): OpeningBalance | null {
+  if (!isRecord(raw) || !isValidIsoDate(raw['date'])) return null;
+  const amount = (value: unknown) =>
+    typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= MAX_AMOUNT ? round2(value) : null;
+  const efectivo = amount(raw['efectivo']);
+  const banco = amount(raw['banco']);
+  if (efectivo === null || banco === null) return null;
+  return { date: raw['date'] as string, efectivo, banco };
 }
 
 export function sanitizeRecurring(raw: unknown): RecurringPayment | null {
@@ -148,7 +189,7 @@ export function sanitizeRule(raw: unknown): MerchantRule | null {
 
 export function sanitizeMovement(raw: unknown): Movement | null {
   if (!isRecord(raw)) return null;
-  const { type, amount, category, date, description, id, createdAt } = raw;
+  const { type, amount, category, date, description, id, account, createdAt } = raw;
 
   if (!MOVEMENT_TYPES.includes(type as MovementType)) return null;
   if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) return null;
@@ -162,8 +203,9 @@ export function sanitizeMovement(raw: unknown): Movement | null {
     amount: round2(amount),
     date,
     description: typeof description === 'string' ? collapseSpaces(description).slice(0, DESCRIPTION_MAX_LENGTH) : '',
-    createdAt:
-      typeof createdAt === 'string' && !Number.isNaN(Date.parse(createdAt)) ? createdAt : new Date().toISOString(),
+    // Los movimientos anteriores a las formas de pago se consideran de tarjeta/transferencia
+    account: isAccount(account) ? account : 'banco',
+    createdAt: validTimestamp(createdAt),
   };
 }
 

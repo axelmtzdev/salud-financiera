@@ -1,4 +1,9 @@
-import { CustomCategories, Movement, MovementType } from './finance.models';
+import { AccountKind, CustomCategories, Movement, MovementType } from './finance.models';
+
+export const ACCOUNT_LABEL: Readonly<Record<AccountKind, string>> = { efectivo: 'Efectivo', banco: 'Tarjeta/transferencia' };
+/** Para espacios cortos (filtros, chips) */
+export const ACCOUNT_SHORT_LABEL: Readonly<Record<AccountKind, string>> = { efectivo: 'Efectivo', banco: 'Tarjeta' };
+export const ACCOUNT_ICON: Readonly<Record<AccountKind, string>> = { efectivo: 'banknote', banco: 'credit-card' };
 
 export const CATEGORY_MAX_LENGTH = 20;
 export const DESCRIPTION_MAX_LENGTH = 120;

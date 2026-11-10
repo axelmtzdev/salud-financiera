@@ -43,6 +43,15 @@
       </select>
     </div>
     <div class="field">
+      <label class="field-label" for="f-account">Forma de pago</label>
+      <select id="f-account" class="input" (change)="setFilter('account', $any($event.target).value)">
+        <option value="all" [selected]="filters().account === 'all'">Todas</option>
+        @for (a of accounts; track a) {
+          <option [value]="a" [selected]="filters().account === a">{{ accountLabel[a] }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
       <label class="field-label" for="f-from">Desde</label>
       <input id="f-from" class="input" type="date" [value]="filters().from" (change)="setFilter('from', $any($event.target).value)" />
     </div>
@@ -92,7 +101,10 @@
           <span class="c-cat" role="cell">
             <span class="punto" [style.background]="finance.colorOf(m.type, m.category)"></span>{{ m.category }}
           </span>
-          <span class="c-desc" role="cell" [class.text-muted]="!m.description">{{ m.description || '—' }}</span>
+          <span class="c-desc" role="cell" [class.text-muted]="!m.description">
+            <svg class="c-account" [lucideIcon]="accountIcon[m.account]" [size]="14" [attr.aria-label]="accountLabel[m.account]" role="img"><title>{{ accountLabel[m.account] }}</title></svg>
+            {{ m.description || '—' }}
+          </span>
           <span class="c-amount num amount" role="cell" [class.text-income]="m.type === 'ingreso'" [class.text-expense]="m.type === 'egreso'">
             {{ m.type === 'ingreso' ? '+' : '−' }}{{ m.amount | currencyFormat }}
           </span>

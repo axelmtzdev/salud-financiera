@@ -23,6 +23,17 @@
         </div>
       </div>
 
+      <div class="field">
+        <span class="field-label" id="account-label">Forma de pago</span>
+        <div class="segmented type-toggle" role="radiogroup" aria-labelledby="account-label">
+          @for (a of accounts; track a) {
+            <button type="button" role="radio" [class.active]="account() === a" [attr.aria-checked]="account() === a" (click)="setAccount(a)">
+              <svg [lucideIcon]="accountIcon[a]" [size]="14" aria-hidden="true"></svg> {{ accountLabel[a] }}
+            </button>
+          }
+        </div>
+      </div>
+
       <div class="form-grid form-grid--2">
         <div class="field">
           <label class="field-label" for="amount">Monto</label>

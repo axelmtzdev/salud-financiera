@@ -146,6 +146,7 @@ export class RecurringService {
       amount: payment.amount,
       date: this.today,
       description: payment.name,
+      account: 'banco',
     });
   }
 }

@@ -45,7 +45,8 @@ export class InboxService {
     const item = this.storage.state().pending.find((p) => p.id === id);
     if (!item) return null;
     const description = [item.merchant, item.card].filter(Boolean).join(' · ');
-    const movement = this.finance.add({ type: item.type, amount: item.amount, category, date: item.date, description });
+    // Los cargos del atajo vienen de Apple Pay: siempre son con tarjeta
+    const movement = this.finance.add({ type: item.type, amount: item.amount, category, date: item.date, description, account: 'banco' });
     if (!movement) return null;
     this.storage.update((data) => ({
       ...data,

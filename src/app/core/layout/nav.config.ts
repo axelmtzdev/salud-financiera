@@ -27,6 +27,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { path: '/movimientos', label: 'Movimientos', tabLabel: 'Inicio', icon: 'list', exact: true, pendingBadge: true },
       { path: '/presupuestos', label: 'Presupuestos', tabLabel: 'Presupuesto', icon: 'target', exact: false },
       { path: '/analisis', label: 'Análisis', icon: 'chart-column', exact: false },
+      { path: '/cuentas', label: 'Cuentas', icon: 'landmark', exact: false },
     ],
   },
   {

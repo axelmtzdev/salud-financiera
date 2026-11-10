@@ -14,8 +14,9 @@ export function generateSampleMovements(today = todayIso()): MovementInput[] {
     const lastDay = new Date(year, month + 1, 0).getDate();
     const maxDay = back === 0 ? t.getDate() : lastDay;
     const day = (d: number) => toIsoDate(new Date(year, month, Math.min(d, maxDay)));
-    const add = (m: Omit<MovementInput, 'date'>, d: number) => {
-      if (d <= maxDay) result.push({ ...m, date: day(d) });
+    // Casi todo con tarjeta/transferencia; lo de efectivo se indica explícitamente
+    const add = (m: Omit<MovementInput, 'date' | 'account'> & { account?: MovementInput['account'] }, d: number) => {
+      if (d <= maxDay) result.push({ account: 'banco', ...m, date: day(d) });
     };
 
     add({ type: 'ingreso', category: 'Salario', amount: 32000, description: 'Nómina quincenal' }, 1);
@@ -26,7 +27,7 @@ export function generateSampleMovements(today = todayIso()): MovementInput[] {
     add({ type: 'egreso', category: 'Vivienda', amount: 14500, description: 'Renta del departamento' }, 2);
     add({ type: 'egreso', category: 'Servicios', amount: 1450 + wobble(back + 1, 400), description: 'Luz, agua e internet' }, 5);
     add({ type: 'egreso', category: 'Alimentación', amount: 4200 + wobble(back + 2, 1500), description: 'Súper' }, 7);
-    add({ type: 'egreso', category: 'Alimentación', amount: 3100 + wobble(back + 3, 1200), description: 'Súper y mercado' }, 21);
+    add({ type: 'egreso', category: 'Alimentación', amount: 3100 + wobble(back + 3, 1200), description: 'Súper y mercado', account: 'efectivo' }, 21);
     add({ type: 'egreso', category: 'Transporte', amount: 2200 + wobble(back + 4, 900), description: 'Gasolina' }, 10);
     add({ type: 'egreso', category: 'Seguros', amount: 1800, description: 'Seguro de auto' }, 12);
     add({ type: 'egreso', category: 'Entretenimiento', amount: 1200 + wobble(back + 5, 2600), description: 'Cine y restaurantes' }, 18);
@@ -36,7 +37,7 @@ export function generateSampleMovements(today = todayIso()): MovementInput[] {
     if (back % 3 === 1) {
       add({ type: 'egreso', category: 'Salud', amount: 1300 + wobble(back + 7, 1000), description: 'Consulta médica' }, 14);
     }
-    add({ type: 'egreso', category: 'Miscelánea', amount: 450 + wobble(back + 8, 700), description: 'Varios' }, 27);
+    add({ type: 'egreso', category: 'Miscelánea', amount: 450 + wobble(back + 8, 700), description: 'Varios', account: 'efectivo' }, 27);
   }
   return result;
 }
