@@ -5,7 +5,7 @@ import { normalizeText } from './text.utils';
  * Sincronización con el servidor. Lo comparten el frontend (calcula qué cambió) y el backend
  * (aplica los cambios), así ambos identifican cada registro con la misma clave.
  */
-export const COLLECTIONS = ['movements', 'pending', 'recurring', 'rules', 'budgets', 'transfers'] as const;
+export const COLLECTIONS = ['movements', 'pending', 'recurring', 'rules', 'budgets', 'transfers', 'goals', 'contributions', 'planned'] as const;
 export type Collection = (typeof COLLECTIONS)[number];
 export type ItemOf<C extends Collection> = AppData[C][number];
 

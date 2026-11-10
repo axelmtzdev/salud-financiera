@@ -239,6 +239,28 @@ describe('cuentas', () => {
   });
 });
 
+describe('metas y proyección', () => {
+  it('guarda metas, abonos (también retiros) y gastos planeados', async () => {
+    const { token } = await register('karla@correo.mx');
+    const res = await call('POST', '/api/data/changes', token, {
+      upsert: {
+        goals: [{ id: 'g1', name: 'iPhone', target: 24000, targetDate: '2027-06-30', createdAt: '2026-11-01T00:00:00.000Z', completedAt: null }],
+        contributions: [
+          { id: 'c1', goalId: 'g1', account: 'banco', amount: 5000, date: today },
+          { id: 'c2', goalId: 'g1', account: 'banco', amount: -1000, date: today },
+        ],
+        planned: [{ id: 'p1', description: 'Vacaciones', category: 'Entretenimiento', amount: 15000, date: '2027-12-15' }],
+      },
+      remove: {},
+    });
+    assert.equal(res.statusCode, 204, res.body);
+    const { data } = (await call('GET', '/api/data', token)).json();
+    assert.equal(data.goals[0].targetDate, '2027-06-30');
+    assert.deepEqual(data.contributions.map((c: { amount: number }) => c.amount).sort(), [-1000, 5000]);
+    assert.equal(data.planned[0].description, 'Vacaciones');
+  });
+});
+
 describe('CORS', () => {
   it('solo permite el origen configurado', async () => {
     const allowed = await app.inject({ method: 'OPTIONS', url: '/api/data', headers: { origin: 'https://mi-app.netlify.app', 'access-control-request-method': 'GET' } });

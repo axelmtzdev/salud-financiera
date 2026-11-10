@@ -54,6 +54,16 @@ export const routes: Routes = [
           import('./features/dashboard/movement-form/movement-form.component').then((m) => m.MovementFormComponent),
       },
       {
+        path: 'metas',
+        title: 'Metas · Salud Financiera',
+        loadComponent: () => import('./features/goals/goals.component').then((m) => m.GoalsComponent),
+      },
+      {
+        path: 'proyeccion',
+        title: 'Proyección · Salud Financiera',
+        loadComponent: () => import('./features/projection/projection.component').then((m) => m.ProjectionComponent),
+      },
+      {
         path: 'cuentas',
         title: 'Cuentas · Salud Financiera',
         loadComponent: () => import('./features/accounts/accounts.component').then((m) => m.AccountsComponent),

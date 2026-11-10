@@ -41,6 +41,41 @@ export interface OpeningBalance {
   banco: number;
 }
 
+/** Algo para lo que se aparta dinero (ej. "Comprar iPhone"). */
+export interface Goal {
+  id: string;
+  name: string;
+  /** Precio o monto a reunir */
+  target: number;
+  /** YYYY-MM-DD opcional: con ella se sugiere cuánto apartar al mes */
+  targetDate: string | null;
+  createdAt: string;
+  /** ISO timestamp; al completarla lo apartado deja de estar reservado */
+  completedAt: string | null;
+}
+
+/** Dinero que se aparta para una meta (positivo) o se regresa al disponible (negativo). Sigue en su cuenta. */
+export interface GoalContribution {
+  id: string;
+  goalId: string;
+  account: AccountKind;
+  amount: number;
+  /** YYYY-MM-DD */
+  date: string;
+  createdAt: string;
+}
+
+/** Gasto futuro conocido, para la proyección (ej. "Vacaciones", "Tenencia"). */
+export interface PlannedExpense {
+  id: string;
+  description: string;
+  category: string;
+  amount: number;
+  /** YYYY-MM-DD */
+  date: string;
+  createdAt: string;
+}
+
 export type MovementInput = Omit<Movement, 'id' | 'createdAt'>;
 
 /** Cuenta del usuario (vive en el servidor). */
@@ -94,6 +129,10 @@ export interface AppData {
   transfers: Transfer[];
   /** Saldo inicial de las cuentas; null mientras el usuario no lo captura */
   opening: OpeningBalance | null;
+  goals: Goal[];
+  contributions: GoalContribution[];
+  /** Gastos futuros para la proyección */
+  planned: PlannedExpense[];
 }
 
 export type RecurringFrequency = 'mensual' | 'anual';
@@ -165,5 +204,5 @@ export interface Insight {
 }
 
 export function createEmptyData(): AppData {
-  return { version: 1, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [], transfers: [], opening: null };
+  return { version: 1, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [], transfers: [], opening: null, goals: [], contributions: [], planned: [] };
 }

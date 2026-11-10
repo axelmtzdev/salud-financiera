@@ -1,0 +1,313 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Metas</span>
+      <h1 class="page-title">Para lo que estás ahorrando</h1>
+      <p class="page-subtitle">Ponle precio a lo que quieres, aparta dinero con abonos y mira cuánto te falta.</p>
+    </div>
+    @if (editing() === null && goals.progress().length) {
+      <div class="page-actions">
+        <button type="button" class="pc-boton boton-primario-elevado" (click)="startCreate()">
+          <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Nueva meta
+        </button>
+      </div>
+    }
+  </header>
+
+  @if (goals.reservedTotal() > 0) {
+    <section class="apartado tarjeta-elevada" aria-label="Dinero apartado">
+      <div>
+        <span class="etiqueta">Apartado para metas</span>
+        <strong class="pc-num">{{ goals.reservedTotal() | currencyFormat }}</strong>
+        <span class="apartado__detalle pc-num">
+          @for (kind of kinds; track kind) {
+            @if (goals.reserved()[kind]) {
+              <span><svg [lucideIcon]="accountIcon[kind]" [size]="13" aria-hidden="true"></svg> {{ goals.reserved()[kind] | currencyFormat }}</span>
+            }
+          }
+        </span>
+      </div>
+      @if (goals.free(); as free) {
+        <div>
+          <span class="etiqueta">Libre en tus cuentas</span>
+          <strong class="pc-num" [class.text-expense]="free.total < 0">{{ free.total | currencyFormat }}</strong>
+          <span class="apartado__detalle">Lo que puedes gastar sin tocar tus metas</span>
+        </div>
+      }
+    </section>
+  }
+
+  @if (editing() !== null) {
+    <app-card [title]="editing() ? 'Editar meta' : 'Nueva meta'" subtitle="La fecha es opcional: con ella te decimos cuánto apartar al mes">
+      <form [formGroup]="goalForm" (ngSubmit)="saveGoal()" class="form-grid" novalidate>
+        <div class="field">
+          <label class="field-label" for="g-name">¿Para qué ahorras?</label>
+          <input id="g-name" class="input" formControlName="name" maxlength="40" placeholder="Ej. Comprar iPhone, Vacaciones, Fondo de emergencia" />
+          @if (invalid(goalForm.controls.name)) {
+            <span class="field-error">Escribe un nombre (máx. 40 caracteres).</span>
+          }
+        </div>
+        <div class="form-grid form-grid--2">
+          <div class="field">
+            <label class="field-label" for="g-target">Precio o monto a reunir</label>
+            <div class="input-group">
+              <span class="input-prefix">$</span>
+              <input id="g-target" class="input pc-num" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" formControlName="target" />
+            </div>
+            @if (invalid(goalForm.controls.target)) {
+              <span class="field-error">Escribe un monto mayor a cero, con máximo 2 decimales.</span>
+            }
+          </div>
+          <div class="field">
+            <label class="field-label" for="g-date">Fecha objetivo <span class="optional">(opcional)</span></label>
+            <input id="g-date" class="input" type="date" formControlName="targetDate" [min]="today" [max]="maxTargetDate" />
+            @if (targetDateError(); as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </div>
+        </div>
+        @if (monthlyPreview(); as preview) {
+          <p class="nota nota--destacada">
+            Para llegar a tiempo tendrías que apartar <strong class="pc-num">{{ preview.monthly | currencyFormat }}</strong> al mes
+            durante {{ preview.months === 1 ? '1 mes' : preview.months + ' meses' }}.
+          </p>
+        }
+        <div class="row-end">
+          <button type="button" class="pc-boton pc-btn--ghost" (click)="editing.set(null)">Cancelar</button>
+          <button type="submit" class="pc-boton boton-primario-elevado">
+            <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> {{ editing() ? 'Guardar cambios' : 'Crear meta' }}
+          </button>
+        </div>
+      </form>
+    </app-card>
+  }
+
+  @if (!goals.progress().length && editing() === null) {
+    <app-card>
+      <div class="empty-state">
+        <span class="empty-state__icon"><svg lucideIcon="flag" [size]="20" [strokeWidth]="1.75" aria-hidden="true"></svg></span>
+        <h3>Aún no tienes metas</h3>
+        <p>Crea una meta como "Comprar iPhone" con su precio. Cada abono aparta dinero de tus cuentas para que no lo gastes en otra cosa.</p>
+        <div class="empty-state__actions">
+          <button type="button" class="pc-boton boton-primario-elevado" (click)="startCreate()">
+            <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Crear mi primera meta
+          </button>
+        </div>
+      </div>
+    </app-card>
+  }
+
+  @if (goals.active().length) {
+    <section class="metas" aria-label="Metas activas">
+      @for (p of goals.active(); track p.goal.id) {
+        <article class="meta tarjeta-elevada" [class.meta--lograda]="p.status === 'alcanzada'">
+          <header class="meta__cabeza">
+            <div class="meta__titulo">
+              <h2>{{ p.goal.name }}</h2>
+              <span class="pill" [class.pill--ingreso]="p.status === 'alcanzada'" [class.pill--egreso]="p.status === 'vencida'" [class.pill--muted]="p.status === 'en-curso'">
+                <span class="punto"></span>{{ statusLabel[p.status] }}
+              </span>
+            </div>
+            <div class="meta__iconos">
+              <button type="button" class="icon-btn" (click)="startEdit(p)" title="Editar meta" aria-label="Editar meta">
+                <svg lucideIcon="pencil" [size]="15" aria-hidden="true"></svg>
+              </button>
+              <button type="button" class="icon-btn icon-btn--danger" (click)="remove(p)" title="Eliminar meta" aria-label="Eliminar meta">
+                <svg lucideIcon="trash-2" [size]="15" aria-hidden="true"></svg>
+              </button>
+            </div>
+          </header>
+
+          <div class="meta__montos pc-num">
+            <strong>{{ p.saved | currencyFormat }}</strong>
+            <span>de {{ p.goal.target | currencyFormat }}</span>
+          </div>
+          <div
+            class="barra"
+            role="progressbar"
+            [attr.aria-valuenow]="p.percent | number: '1.0-0'"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            [attr.aria-label]="'Progreso de ' + p.goal.name"
+          >
+            <div class="barra__relleno" [style.width.%]="p.percent"></div>
+          </div>
+          <div class="meta__pie">
+            <span class="pc-num">{{ p.percent | number: '1.0-0' }} %</span>
+            @if (p.remaining > 0) {
+              <span class="pc-num">Faltan {{ p.remaining | currencyFormat }}</span>
+            } @else {
+              <span class="text-income">¡Ya tienes el dinero!</span>
+            }
+          </div>
+
+          @if (p.status === 'en-curso' && p.monthly !== null && p.goal.targetDate) {
+            <p class="nota">
+              Aparta <strong class="pc-num">{{ p.monthly | currencyFormat }}</strong> al mes para llegar en {{ monthName(p.goal.targetDate) }}.
+            </p>
+          } @else if (p.status === 'vencida' && p.goal.targetDate) {
+            <p class="nota nota--alerta">La fecha objetivo ({{ p.goal.targetDate | dateFormat: 'short' }}) ya pasó. Cámbiala o sigue abonando.</p>
+          } @else if (p.status === 'en-curso') {
+            <p class="nota">Sin fecha objetivo: abona cuando puedas.</p>
+          }
+
+          <div class="meta__acciones">
+            @if (p.status === 'alcanzada') {
+              <button type="button" class="pc-boton boton-primario-elevado" (click)="open(p, 'completar')">
+                <svg lucideIcon="circle-check" [size]="14" aria-hidden="true"></svg> Completar meta
+              </button>
+            } @else {
+              <button type="button" class="pc-boton boton-primario-elevado" (click)="open(p, 'abonar')" [attr.aria-expanded]="isOpen(p, 'abonar')">
+                <svg lucideIcon="piggy-bank" [size]="14" aria-hidden="true"></svg> Abonar
+              </button>
+            }
+            @if (p.saved > 0) {
+              <button type="button" class="pc-boton boton-elevado" (click)="open(p, 'retirar')" [attr.aria-expanded]="isOpen(p, 'retirar')">Retirar</button>
+              <button type="button" class="pc-boton pc-btn--ghost" (click)="open(p, 'historial')" [attr.aria-expanded]="isOpen(p, 'historial')">Historial</button>
+            }
+          </div>
+
+          @if (isOpen(p, 'abonar') || isOpen(p, 'retirar')) {
+            @let mode = isOpen(p, 'abonar') ? 'abonar' : 'retirar';
+            <form [formGroup]="moveForm" (ngSubmit)="saveMove(p, mode)" class="panel mov-entrar" novalidate>
+              <div class="field">
+                <span class="field-label" [id]="'acc-' + p.goal.id">{{ mode === 'abonar' ? 'Apartar desde' : 'Regresar a' }}</span>
+                <div class="segmented" role="radiogroup" [attr.aria-labelledby]="'acc-' + p.goal.id">
+                  @for (kind of kinds; track kind) {
+                    <button type="button" role="radio" [class.active]="moveAccount() === kind" [attr.aria-checked]="moveAccount() === kind" (click)="moveForm.controls.account.setValue(kind)">
+                      <svg [lucideIcon]="accountIcon[kind]" [size]="14" aria-hidden="true"></svg> {{ accountShort[kind] }}
+                    </button>
+                  }
+                </div>
+                <span class="field-hint pc-num">
+                  @if (mode === 'abonar') {
+                    @if (freeIn(moveAccount()); as free) {
+                      Libre en {{ accountLabel[moveAccount()] }}: {{ free | currencyFormat }}
+                    } @else if (freeIn(moveAccount()) === null) {
+                      Captura tu saldo inicial en <a routerLink="/cuentas">Cuentas</a> para ver cuánto tienes libre.
+                    } @else {
+                      No tienes dinero libre en {{ accountLabel[moveAccount()] }}.
+                    }
+                  } @else {
+                    Apartado en {{ accountLabel[moveAccount()] }}: {{ p.byAccount[moveAccount()] | currencyFormat }}
+                  }
+                </span>
+              </div>
+              <div class="form-grid form-grid--2">
+                <div class="field">
+                  <label class="field-label" [for]="'amt-' + p.goal.id">Monto</label>
+                  <div class="input-group">
+                    <span class="input-prefix">$</span>
+                    <input [id]="'amt-' + p.goal.id" class="input pc-num" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" formControlName="amount" />
+                  </div>
+                  @if (invalid(moveForm.controls.amount)) {
+                    <span class="field-error">Escribe un monto mayor a cero.</span>
+                  }
+                </div>
+                <div class="field">
+                  <label class="field-label" [for]="'date-' + p.goal.id">Fecha</label>
+                  <input [id]="'date-' + p.goal.id" class="input" type="date" formControlName="date" [min]="minDate" [max]="today" />
+                </div>
+              </div>
+              @if (moveError(); as message) {
+                <span class="field-error" role="alert">{{ message }}</span>
+              }
+              <div class="row-end">
+                <button type="button" class="pc-boton pc-btn--ghost" (click)="panel.set(null)">Cancelar</button>
+                <button type="submit" class="pc-boton boton-primario-elevado">{{ mode === 'abonar' ? 'Apartar' : 'Regresar al disponible' }}</button>
+              </div>
+            </form>
+          }
+
+          @if (isOpen(p, 'completar')) {
+            <form [formGroup]="completeForm" (ngSubmit)="complete(p)" class="panel mov-entrar" novalidate>
+              <label class="check">
+                <input type="checkbox" formControlName="register" />
+                Registrar la compra como egreso
+              </label>
+              @if (registerPurchase()) {
+                <div class="form-grid form-grid--2">
+                  <div class="field">
+                    <label class="field-label" [for]="'cat-' + p.goal.id">Categoría</label>
+                    <select [id]="'cat-' + p.goal.id" class="input" formControlName="category">
+                      <option value="" disabled>Elige categoría…</option>
+                      @for (c of expenseCategories(); track c) {
+                        <option [value]="c">{{ c }}</option>
+                      }
+                    </select>
+                    @if (invalid(completeForm.controls.category)) {
+                      <span class="field-error">Elige una categoría.</span>
+                    }
+                  </div>
+                  <div class="field">
+                    <label class="field-label" [for]="'buy-' + p.goal.id">Monto de la compra</label>
+                    <div class="input-group">
+                      <span class="input-prefix">$</span>
+                      <input [id]="'buy-' + p.goal.id" class="input pc-num" type="number" inputmode="decimal" step="0.01" min="0.01" formControlName="amount" />
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <span class="field-label" [id]="'pay-' + p.goal.id">Forma de pago</span>
+                  <div class="segmented" role="radiogroup" [attr.aria-labelledby]="'pay-' + p.goal.id">
+                    @for (kind of kinds; track kind) {
+                      <button type="button" role="radio" [class.active]="completeAccount() === kind" [attr.aria-checked]="completeAccount() === kind" (click)="completeForm.controls.account.setValue(kind)">
+                        <svg [lucideIcon]="accountIcon[kind]" [size]="14" aria-hidden="true"></svg> {{ accountShort[kind] }}
+                      </button>
+                    }
+                  </div>
+                </div>
+                <p class="nota">Lo apartado se libera y el egreso descuenta la compra de tu cuenta.</p>
+              } @else {
+                <p class="nota">Lo apartado vuelve a estar libre (útil para un fondo de emergencia o si compras después).</p>
+              }
+              <div class="row-end">
+                <button type="button" class="pc-boton pc-btn--ghost" (click)="panel.set(null)">Cancelar</button>
+                <button type="submit" class="pc-boton boton-primario-elevado">
+                  <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> Completar
+                </button>
+              </div>
+            </form>
+          }
+
+          @if (isOpen(p, 'historial')) {
+            <ul class="historial panel mov-entrar">
+              @for (c of history(p.goal.id).slice(0, historyShown); track c.id) {
+                <li>
+                  <svg [lucideIcon]="accountIcon[c.account]" [size]="14" aria-hidden="true"></svg>
+                  <span class="historial__fecha pc-num">{{ c.date | dateFormat: 'short' }}</span>
+                  <strong class="pc-num" [class.text-income]="c.amount > 0" [class.text-expense]="c.amount < 0">
+                    {{ c.amount > 0 ? '+' : '−' }}{{ (c.amount > 0 ? c.amount : -c.amount) | currencyFormat }}
+                  </strong>
+                  <button type="button" class="icon-btn icon-btn--danger" (click)="removeContribution(c)" title="Eliminar" aria-label="Eliminar">
+                    <svg lucideIcon="x" [size]="14" aria-hidden="true"></svg>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </article>
+      }
+    </section>
+  }
+
+  @if (goals.completed().length) {
+    <app-card title="Metas cumplidas" [flush]="true">
+      <ul class="cumplidas">
+        @for (p of goals.completed(); track p.goal.id) {
+          <li>
+            <svg lucideIcon="circle-check" [size]="16" class="text-income" aria-hidden="true"></svg>
+            <span class="cumplidas__texto">
+              <strong>{{ p.goal.name }}</strong>
+              <span class="pc-num">{{ p.goal.target | currencyFormat }} · {{ p.goal.completedAt! | dateFormat: 'short' }}</span>
+            </span>
+            <button type="button" class="pc-boton pc-btn--ghost" (click)="reopen(p)">Reabrir</button>
+            <button type="button" class="icon-btn icon-btn--danger" (click)="remove(p)" title="Eliminar meta" aria-label="Eliminar meta">
+              <svg lucideIcon="trash-2" [size]="15" aria-hidden="true"></svg>
+            </button>
+          </li>
+        }
+      </ul>
+    </app-card>
+  }
+</div>

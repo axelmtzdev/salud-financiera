@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { AccountsService } from '../../core/services/accounts.service';
+import { GoalsService } from '../../core/services/goals.service';
 import { ACCOUNT_ICON, ACCOUNT_LABEL } from '../../shared/models/categories';
 import { ACCOUNT_KINDS } from '../../shared/models/finance.models';
 import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
@@ -17,7 +18,13 @@ import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
         <div class="saldo__total">
           <span class="etiqueta">Saldo disponible</span>
           <strong class="saldo__valor pc-num" [class.text-expense]="b.total < 0">{{ b.total | currencyFormat }}</strong>
-          <span class="saldo__ayuda">En tus cuentas al día de hoy</span>
+          @if (goals.reservedTotal() > 0) {
+            <span class="saldo__ayuda pc-num">
+              Libre {{ goals.free()!.total | currencyFormat }} · {{ goals.reservedTotal() | currencyFormat }} apartado para metas
+            </span>
+          } @else {
+            <span class="saldo__ayuda">En tus cuentas al día de hoy</span>
+          }
         </div>
         <ul class="saldo__cuentas">
           @for (kind of kinds; track kind) {
@@ -98,6 +105,7 @@ import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
 })
 export class BalanceSummaryComponent {
   protected readonly accounts = inject(AccountsService);
+  protected readonly goals = inject(GoalsService);
   protected readonly kinds = ACCOUNT_KINDS;
   protected readonly label = ACCOUNT_LABEL;
   protected readonly icon = ACCOUNT_ICON;

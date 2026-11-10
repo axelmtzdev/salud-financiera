@@ -4,6 +4,8 @@ import {
   AccountKind,
   AppData,
   Budget,
+  Goal,
+  GoalContribution,
   CustomCategories,
   MerchantRule,
   Movement,
@@ -11,6 +13,7 @@ import {
   MovementType,
   PendingMovement,
   OpeningBalance,
+  PlannedExpense,
   RecurringPayment,
   Transfer,
   createEmptyData,
@@ -66,6 +69,9 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
         : [],
       transfers: sanitizeList(raw['transfers'], sanitizeTransfer),
       opening: sanitizeOpening(raw['opening']),
+      goals: sanitizeList(raw['goals'], sanitizeGoal),
+      contributions: sanitizeList(raw['contributions'], sanitizeContribution),
+      planned: sanitizeList(raw['planned'], sanitizePlanned),
     },
     discarded,
   };
@@ -74,6 +80,45 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
 const isAccount = (value: unknown): value is AccountKind => ACCOUNT_KINDS.includes(value as AccountKind);
 const validTimestamp = (value: unknown): string =>
   typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : new Date().toISOString();
+
+const validAmount = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= MAX_AMOUNT;
+
+export function sanitizeGoal(raw: unknown): Goal | null {
+  if (!isRecord(raw)) return null;
+  const { id, name, target, targetDate, createdAt, completedAt } = raw;
+  if (!nonEmptyString(name) || !validAmount(target)) return null;
+  return {
+    id: nonEmptyString(id) ? id : uuid(),
+    name: collapseSpaces(name).slice(0, 40),
+    target: round2(target),
+    targetDate: isValidIsoDate(targetDate) ? targetDate : null,
+    createdAt: validTimestamp(createdAt),
+    completedAt: typeof completedAt === 'string' && !Number.isNaN(Date.parse(completedAt)) ? completedAt : null,
+  };
+}
+
+export function sanitizeContribution(raw: unknown): GoalContribution | null {
+  if (!isRecord(raw)) return null;
+  const { id, goalId, account, amount, date, createdAt } = raw;
+  if (!nonEmptyString(goalId) || !isAccount(account) || !isValidIsoDate(date)) return null;
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount === 0 || Math.abs(amount) > MAX_AMOUNT) return null;
+  return { id: nonEmptyString(id) ? id : uuid(), goalId, account, amount: round2(amount), date, createdAt: validTimestamp(createdAt) };
+}
+
+export function sanitizePlanned(raw: unknown): PlannedExpense | null {
+  if (!isRecord(raw)) return null;
+  const { id, description, category, amount, date, createdAt } = raw;
+  if (!nonEmptyString(description) || !nonEmptyString(category) || !validAmount(amount) || !isValidIsoDate(date)) return null;
+  return {
+    id: nonEmptyString(id) ? id : uuid(),
+    description: collapseSpaces(description).slice(0, 60),
+    category: collapseSpaces(category).slice(0, 40),
+    amount: round2(amount),
+    date,
+    createdAt: validTimestamp(createdAt),
+  };
+}
 
 export function sanitizeTransfer(raw: unknown): Transfer | null {
   if (!isRecord(raw)) return null;

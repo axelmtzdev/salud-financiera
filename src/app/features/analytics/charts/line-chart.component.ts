@@ -52,13 +52,13 @@ const M = { top: 22, right: 16, bottom: 26, left: 60 };
       @if (tooltip(); as tip) {
         <div class="tooltip" [style.left.px]="tip.x" [style.top.px]="tip.y">
           <div class="tooltip__title">{{ tip.label }}</div>
-          <div class="tooltip__row"><span>Saldo neto</span><span>{{ fmt(tip.net) }}</span></div>
+          <div class="tooltip__row"><span>{{ valueLabel() }}</span><span>{{ fmt(tip.net) }}</span></div>
           <div class="tooltip__row"><span>Ingresos</span><span>{{ fmt(tip.income) }}</span></div>
-          <div class="tooltip__row"><span>Egresos</span><span>{{ fmt(tip.expense) }}</span></div>
+          <div class="tooltip__row"><span>{{ expenseLabel() }}</span><span>{{ fmt(tip.expense) }}</span></div>
         </div>
       }
     } @else {
-      <div class="empty">Sin movimientos en los últimos 6 meses</div>
+      <div class="empty">{{ emptyText() }}</div>
     }
   `,
   styles: `
@@ -72,6 +72,10 @@ const M = { top: 22, right: 16, bottom: 26, left: 60 };
 })
 export class LineChartComponent {
   readonly points = input.required<MonthlyPoint[]>();
+  /** Qué representa la línea (en el tooltip y la descripción accesible) */
+  readonly valueLabel = input('Saldo neto');
+  readonly expenseLabel = input('Egresos');
+  readonly emptyText = input('Sin movimientos en los últimos 6 meses');
 
   protected readonly m = M;
   protected readonly height = HEIGHT;
@@ -115,7 +119,7 @@ export class LineChartComponent {
   });
 
   protected readonly ariaLabel = computed(
-    () => 'Saldo neto por mes: ' + this.points().map((p) => `${p.label} ${formatCurrency(p.net)}`).join(', '),
+    () => `${this.valueLabel()} por mes: ` + this.points().map((p) => `${p.label} ${formatCurrency(p.net)}`).join(', '),
   );
 
   protected onMove(event: MouseEvent): void {

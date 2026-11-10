@@ -1,0 +1,166 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">Proyección</span>
+      <h1 class="page-title">Tu dinero en los próximos meses</h1>
+      <p class="page-subtitle">Cuánto te quedaría libre al cierre de cada mes si sigues gastando como hasta ahora.</p>
+    </div>
+    <div class="page-actions">
+      <div class="segmented" role="radiogroup" aria-label="Meses a proyectar">
+        @for (h of horizons; track h) {
+          <button type="button" role="radio" [class.active]="horizon() === h" [attr.aria-checked]="horizon() === h" (click)="horizon.set(h)">
+            {{ h }} meses
+          </button>
+        }
+      </div>
+    </div>
+  </header>
+
+  @if (!projection.hasStart()) {
+    <div class="aviso">
+      <svg lucideIcon="info" [size]="16" aria-hidden="true"></svg>
+      <p>
+        Aún no capturas tu saldo inicial, así que proyectamos solo lo que entra y sale, partiendo de $0.
+        <a routerLink="/cuentas">Captúralo en Cuentas</a> para ver cuánto tendrías.
+      </p>
+    </div>
+  }
+
+  <section class="stats-grid stats-grid--3" aria-label="Resumen de la proyección">
+    <app-stat-tile label="Libre hoy" [value]="fmt(result().start)" [negative]="result().start < 0" hint="Saldo disponible − apartado para metas" />
+    <app-stat-tile [label]="'Al cierre de ' + last().label" [value]="fmt(last().balance)" [negative]="last().balance < 0" [hint]="signed(last().balance - result().start) + ' contra hoy'" />
+    @if (result().lowest; as low) {
+      <app-stat-tile label="Mes más bajo" [value]="fmt(low.balance)" [negative]="low.balance < 0" [hint]="monthName(low.key)" />
+    }
+  </section>
+
+  @if (result().firstNegative; as neg) {
+    <div class="aviso aviso--alerta" role="alert">
+      <svg lucideIcon="triangle-alert" [size]="16" aria-hidden="true"></svg>
+      <p>
+        En <strong>{{ monthName(neg.key) }}</strong> tu saldo libre quedaría en <strong class="pc-num">{{ neg.balance | currencyFormat }}</strong>.
+        Revisa tus gastos planeados, tus metas o tus presupuestos.
+      </p>
+    </div>
+  }
+
+  <app-card title="Saldo libre al cierre de cada mes" subtitle="Pasa el cursor por un mes para ver el detalle">
+    <app-line-chart [points]="chartPoints()" valueLabel="Saldo libre" expenseLabel="Salidas" emptyText="Aún no hay datos para proyectar" />
+  </app-card>
+
+  <app-card title="Mes por mes" [flush]="true">
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th scope="col">Mes</th>
+            <th scope="col" class="num">Ingresos</th>
+            <th scope="col" class="num">Gastos</th>
+            <th scope="col" class="num">Pagos fijos</th>
+            <th scope="col" class="num">Planeados</th>
+            <th scope="col" class="num">Metas</th>
+            <th scope="col" class="num">Saldo libre</th>
+          </tr>
+        </thead>
+        <tbody class="pc-num">
+          @for (m of result().months; track m.key; let first = $first) {
+            <tr>
+              <th scope="row">{{ m.label }}@if (first) {<span class="tabla__nota">Lo que falta</span>}</th>
+              <td class="num text-income">+{{ m.income | currencyFormat }}</td>
+              <td class="num">−{{ m.variable | currencyFormat }}</td>
+              <td class="num">{{ m.recurring ? '−' : '' }}{{ m.recurring | currencyFormat }}</td>
+              <td class="num">{{ m.planned ? '−' : '' }}{{ m.planned | currencyFormat }}</td>
+              <td class="num">{{ m.goals ? '−' : '' }}{{ m.goals | currencyFormat }}</td>
+              <td class="num"><strong [class.text-expense]="m.balance < 0">{{ m.balance | currencyFormat }}</strong></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="base">
+      @if (basisText(); as months) {
+        Ingresos ({{ result().basis.avgIncome | currencyFormat }}/mes) y gastos del día a día ({{ result().basis.avgVariable | currencyFormat }}/mes):
+        promedio de {{ months }}.
+      } @else {
+        Aún no hay meses cerrados con movimientos: solo se proyectan pagos fijos, gastos planeados y metas.
+      }
+      Pagos fijos: los de <a routerLink="/pagos">Pagos recurrentes</a> en su fecha. Metas: lo que conviene apartar al mes para las que tienen fecha.
+      Del mes en curso solo cuenta lo que falta.
+    </p>
+  </app-card>
+
+  <app-card title="Gastos planeados" subtitle="Gastos grandes que ya sabes que vienen: vacaciones, tenencia, inscripciones…">
+    @if (showPlannedForm()) {
+      <form [formGroup]="plannedForm" (ngSubmit)="addPlanned()" class="form-grid planeado-form mov-entrar" novalidate>
+        <div class="form-grid form-grid--2">
+          <div class="field">
+            <label class="field-label" for="p-desc">Descripción</label>
+            <input id="p-desc" class="input" formControlName="description" maxlength="60" placeholder="Ej. Vacaciones de diciembre" />
+            @if (invalid(plannedForm.controls.description)) {
+              <span class="field-error">Escribe una descripción.</span>
+            }
+          </div>
+          <div class="field">
+            <label class="field-label" for="p-amount">Monto</label>
+            <div class="input-group">
+              <span class="input-prefix">$</span>
+              <input id="p-amount" class="input pc-num" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00" formControlName="amount" />
+            </div>
+            @if (invalid(plannedForm.controls.amount)) {
+              <span class="field-error">Escribe un monto mayor a cero.</span>
+            }
+          </div>
+          <div class="field">
+            <label class="field-label" for="p-date">Fecha</label>
+            <input id="p-date" class="input" type="date" formControlName="date" [min]="today" [max]="maxPlannedDate" />
+            @if (plannedDateError(); as message) {
+              <span class="field-error">{{ message }}</span>
+            }
+          </div>
+          <div class="field">
+            <label class="field-label" for="p-cat">Categoría</label>
+            <select id="p-cat" class="input" formControlName="category">
+              <option value="" disabled>Elige categoría…</option>
+              @for (c of expenseCategories(); track c) {
+                <option [value]="c">{{ c }}</option>
+              }
+            </select>
+            @if (invalid(plannedForm.controls.category)) {
+              <span class="field-error">Elige una categoría.</span>
+            }
+          </div>
+        </div>
+        <div class="row-end">
+          <button type="button" class="pc-boton pc-btn--ghost" (click)="showPlannedForm.set(false)">Cancelar</button>
+          <button type="submit" class="pc-boton boton-primario-elevado">
+            <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> Agregar
+          </button>
+        </div>
+      </form>
+    } @else {
+      <button type="button" class="pc-boton boton-elevado" (click)="showPlannedForm.set(true)">
+        <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar gasto planeado
+      </button>
+    }
+
+    @if (projection.upcomingPlanned().length) {
+      <ul class="planeados">
+        @for (p of projection.upcomingPlanned(); track p.id) {
+          <li>
+            <span class="planeados__icono"><svg lucideIcon="calendar-clock" [size]="14" aria-hidden="true"></svg></span>
+            <span class="planeados__texto">
+              <strong>{{ p.description }}</strong>
+              <span>{{ p.date | dateFormat: 'short' }} · {{ p.category }}</span>
+            </span>
+            <strong class="pc-num text-expense">−{{ p.amount | currencyFormat }}</strong>
+            <button type="button" class="icon-btn icon-btn--danger" (click)="removePlanned(p)" title="Eliminar" aria-label="Eliminar gasto planeado">
+              <svg lucideIcon="trash-2" [size]="15" aria-hidden="true"></svg>
+            </button>
+          </li>
+        }
+      </ul>
+    } @else if (!showPlannedForm()) {
+      <p class="nota">Sin gastos planeados. Cuando llegue la fecha, regístralo como egreso normal.</p>
+    }
+  </app-card>
+</div>
