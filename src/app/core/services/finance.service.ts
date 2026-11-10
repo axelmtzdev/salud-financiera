@@ -116,7 +116,7 @@ export class FinanceService {
   }
 
   exportJson(): string {
-    const { movements, categories, rules, budgets, recurring, recurringIgnored, transfers, opening, goals, contributions, planned } =
+    const { movements, categories, rules, budgets, recurring, recurringIgnored, transfers, opening, goals, contributions } =
       this.storage.state();
     return JSON.stringify(
       {
@@ -132,7 +132,6 @@ export class FinanceService {
         opening,
         goals,
         contributions,
-        planned,
       },
       null,
       2,
@@ -167,7 +166,6 @@ export class FinanceService {
       transfers: has('transfers') ? data.transfers : current.transfers,
       goals: has('goals') ? data.goals : current.goals,
       contributions: has('contributions') ? data.contributions : current.contributions,
-      planned: has('planned') ? data.planned : current.planned,
       opening: 'opening' in (parsed as Record<string, unknown>) ? data.opening : current.opening,
     }));
     return ok ? { ok: true, count: kept.length } : { ok: false, error: 'Inicia sesión para restaurar el respaldo.' };

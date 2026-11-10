@@ -1,5 +1,5 @@
 import { AccountKind, Goal, GoalContribution, Movement, MovementType, RecurringPayment } from '../models/finance.models';
-import { sanitizeContribution, sanitizeGoal, sanitizePlanned } from './data-integrity.utils';
+import { sanitizeContribution, sanitizeGoal } from './data-integrity.utils';
 import { goalProgress, reservedByAccount } from './goals.utils';
 import { projectBalance, projectionBasis } from './projection.utils';
 
@@ -42,6 +42,7 @@ const renta: RecurringPayment = {
   match: 'renta',
   subscription: false,
   createdAt: '2026-01-01T00:00:00.000Z',
+  kind: 'fijo' as const, installments: null, startMonth: null, date: null, amounts: {}, paidDues: [],
 };
 
 const TODAY = '2026-04-10';
@@ -93,12 +94,13 @@ describe('projection.utils', () => {
       today: TODAY,
       start: 5000,
       horizon: 3,
-      movements,
-      recurring: [renta],
-      planned: [
-        { id: 'p1', description: 'Vacaciones', category: 'Entretenimiento', amount: 15000, date: '2026-05-20', createdAt: '' },
-        { id: 'p0', description: 'Ya pasó', category: 'X', amount: 999, date: '2026-04-01', createdAt: '' },
+      recurring: [
+        renta,
+        { ...renta, id: 'p1', name: 'Vacaciones', match: 'vacaciones', amount: 15000, kind: 'unico', date: '2026-05-20', day: 20 },
+        // Pago único de este mes que ya se pagó: no cuenta
+        { ...renta, id: 'p0', name: 'Tenencia', match: 'tenencia', amount: 999, kind: 'unico', date: '2026-04-08', day: 8 },
       ],
+      movements: [...movements, mv('egreso', 999, '2026-04-08', 'Tenencia')],
       goals: [goal({ targetDate: '2026-05-31' })],
       contributions: [abono(4000)],
     });
@@ -111,14 +113,12 @@ describe('projection.utils', () => {
     expect(projection.lowest?.key).toBe('2026-05');
   });
 
-  it('valida metas, abonos y gastos planeados', () => {
+  it('valida metas y abonos', () => {
     expect(sanitizeGoal({ name: ' iPhone  16 ', target: 24000.005, targetDate: 'pronto' })).toEqual(
       jasmine.objectContaining({ name: 'iPhone 16', target: 24000.01, targetDate: null, completedAt: null }),
     );
     expect(sanitizeGoal({ name: 'X', target: 0 })).toBeNull();
     expect(sanitizeContribution({ goalId: 'g1', account: 'banco', amount: -500, date: '2026-04-01' })?.amount).toBe(-500);
     expect(sanitizeContribution({ goalId: 'g1', account: 'banco', amount: 0, date: '2026-04-01' })).toBeNull();
-    expect(sanitizePlanned({ description: 'Tenencia', category: 'Transporte', amount: 1500, date: '2026-01-31' })?.amount).toBe(1500);
-    expect(sanitizePlanned({ description: '', category: 'X', amount: 1, date: '2026-01-31' })).toBeNull();
   });
 });

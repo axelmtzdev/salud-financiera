@@ -101,6 +101,19 @@ const MIGRATIONS: string[] = [
   ALTER TABLE movements ADD COLUMN account text NOT NULL DEFAULT 'banco' CHECK (account IN ('efectivo', 'banco'));
   ALTER TABLE users ADD COLUMN opening jsonb;
   `,
+  // Los gastos planeados (de Proyección) pasan a ser pagos únicos en la sección Pagos
+  `
+  INSERT INTO user_items (user_id, kind, key, data)
+  SELECT user_id, 'recurring', key, jsonb_build_object(
+      'id', data->>'id', 'name', data->>'description', 'category', data->>'category',
+      'amount', (data->>'amount')::numeric, 'frequency', 'mensual',
+      'day', extract(day from (data->>'date')::date)::int, 'month', null,
+      'match', lower(data->>'description'), 'subscription', false, 'createdAt', data->>'createdAt',
+      'kind', 'unico', 'date', data->>'date', 'installments', null, 'startMonth', null, 'amounts', '{}'::jsonb)
+    FROM user_items WHERE kind = 'planned'
+  ON CONFLICT (user_id, kind, key) DO NOTHING;
+  DELETE FROM user_items WHERE kind = 'planned';
+  `,
 ];
 
 export async function migrate(db: Db): Promise<void> {

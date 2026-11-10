@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
-import { FinanceService } from '../../core/services/finance.service';
 import { RecurringService } from '../../core/services/recurring.service';
 import { ToastService } from '../../core/services/toast.service';
 import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
@@ -35,7 +34,7 @@ const MAX_ROWS = 3;
               <span class="cuando pc-num" [class.vencido]="o.status === 'vencido'">
                 {{ o.due | dateFormat: 'short' }} · {{ when(o) }}
               </span>
-              <span class="amount pc-num">{{ o.payment.amount | currencyFormat }}</span>
+              <span class="amount pc-num">{{ o.amount | currencyFormat }}</span>
               <button type="button" class="icon-btn" (click)="markPaid(o)" title="Marcar pagado" [attr.aria-label]="'Marcar pagado ' + o.payment.name">
                 <svg lucideIcon="check" [size]="15" [strokeWidth]="2.5" aria-hidden="true"></svg>
               </button>
@@ -88,13 +87,12 @@ const MAX_ROWS = 3;
 })
 export class UpcomingSummaryComponent {
   private readonly recurring = inject(RecurringService);
-  private readonly finance = inject(FinanceService);
   private readonly toast = inject(ToastService);
 
   protected readonly horizon = HORIZON_DAYS;
   protected readonly maxRows = MAX_ROWS;
   protected readonly soon = computed(() => this.recurring.upcoming().filter((o) => o.daysLeft <= HORIZON_DAYS));
-  protected readonly total = computed(() => this.soon().reduce((sum, o) => sum + o.payment.amount, 0));
+  protected readonly total = computed(() => this.soon().reduce((sum, o) => sum + o.amount, 0));
 
   protected when(o: Occurrence): string {
     if (o.daysLeft < 0) return 'vencido';
@@ -104,14 +102,14 @@ export class UpcomingSummaryComponent {
   }
 
   protected markPaid(o: Occurrence): void {
-    const movement = this.recurring.markPaid(o.payment);
+    const movement = this.recurring.markPaid(o);
     if (!movement) {
       this.toast.error('No se pudo registrar el pago.');
       return;
     }
-    this.toast.success(`${o.payment.name}: egreso de ${formatCurrency(o.payment.amount)} registrado`, {
+    this.toast.success(`${o.payment.name}: egreso de ${formatCurrency(o.amount)} registrado`, {
       label: 'Deshacer',
-      run: () => this.finance.remove(movement.id),
+      run: () => this.recurring.undoPaid(o, movement),
     });
   }
 }

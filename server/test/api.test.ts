@@ -239,9 +239,10 @@ describe('cuentas', () => {
   });
 });
 
-describe('metas y proyección', () => {
-  it('guarda metas, abonos (también retiros) y gastos planeados', async () => {
+describe('metas y pagos', () => {
+  it('guarda metas, abonos (también retiros) y pagos de cada tipo', async () => {
     const { token } = await register('karla@correo.mx');
+    const pago = { category: 'Deudas', frequency: 'mensual', day: 27, month: null, subscription: false };
     const res = await call('POST', '/api/data/changes', token, {
       upsert: {
         goals: [{ id: 'g1', name: 'iPhone', target: 24000, targetDate: '2027-06-30', createdAt: '2026-11-01T00:00:00.000Z', completedAt: null }],
@@ -249,7 +250,11 @@ describe('metas y proyección', () => {
           { id: 'c1', goalId: 'g1', account: 'banco', amount: 5000, date: today },
           { id: 'c2', goalId: 'g1', account: 'banco', amount: -1000, date: today },
         ],
-        planned: [{ id: 'p1', description: 'Vacaciones', category: 'Entretenimiento', amount: 15000, date: '2027-12-15' }],
+        recurring: [
+          { ...pago, id: 'moto', name: 'Crédito moto', amount: 3000, kind: 'plazos', installments: 4, startMonth: '2026-11' },
+          { ...pago, id: 'bbva', name: 'Tarjeta BBVA', amount: 5000, kind: 'variable', amounts: { '2026-11': 6200 } },
+          { ...pago, id: 'vac', name: 'Vacaciones', amount: 15000, kind: 'unico', date: '2027-12-15' },
+        ],
       },
       remove: {},
     });
@@ -257,7 +262,28 @@ describe('metas y proyección', () => {
     const { data } = (await call('GET', '/api/data', token)).json();
     assert.equal(data.goals[0].targetDate, '2027-06-30');
     assert.deepEqual(data.contributions.map((c: { amount: number }) => c.amount).sort(), [-1000, 5000]);
-    assert.equal(data.planned[0].description, 'Vacaciones');
+    const byId = Object.fromEntries(data.recurring.map((r: { id: string }) => [r.id, r]));
+    assert.equal(byId['moto'].installments, 4);
+    assert.deepEqual(byId['bbva'].amounts, { '2026-11': 6200 });
+    assert.equal(byId['vac'].day, 15);
+  });
+
+  it('la migración convierte los gastos planeados anteriores en pagos únicos', async () => {
+    const { token, user } = await register('luis@correo.mx');
+    await db.query(`INSERT INTO user_items (user_id, kind, key, data) VALUES ($1, 'planned', 'p1', $2::jsonb)`, [
+      user.id,
+      JSON.stringify({ id: 'p1', description: 'Tenencia', category: 'Transporte', amount: 1500, date: '2027-03-31', createdAt: '2026-11-01T00:00:00.000Z' }),
+    ]);
+    // Se vuelve a aplicar la migración 3 como si este usuario viniera de la versión anterior
+    await db.query('DELETE FROM schema_migrations WHERE version = 3');
+    await migrate(db);
+    const { data } = (await call('GET', '/api/data', token)).json();
+    assert.deepEqual(
+      data.recurring.map((r: { id: string; kind: string; name: string; date: string; day: number }) => [r.id, r.kind, r.name, r.date, r.day]),
+      [['p1', 'unico', 'Tenencia', '2027-03-31', 31]],
+    );
+    const { rows } = await db.query(`SELECT 1 FROM user_items WHERE kind = 'planned'`);
+    assert.equal(rows.length, 0);
   });
 });
 

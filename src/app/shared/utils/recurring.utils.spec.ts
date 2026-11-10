@@ -1,7 +1,9 @@
 import { Movement, MovementType, RecurringPayment } from '../models/finance.models';
-import { sanitizeRecurring } from './data-integrity.utils';
+import { sanitizeAppData, sanitizeRecurring } from './data-integrity.utils';
 import {
+  amountFor,
   currentOccurrence,
+  installmentProgress,
   detectRecurring,
   dueDateIn,
   dueDatesBetween,
@@ -35,6 +37,7 @@ const rec = (over: Partial<RecurringPayment> = {}): RecurringPayment => ({
   match: 'netflix',
   subscription: true,
   createdAt: '2026-01-01T00:00:00.000Z',
+  kind: 'fijo' as const, installments: null, startMonth: null, date: null, amounts: {}, paidDues: [],
   ...over,
 });
 
@@ -82,6 +85,55 @@ describe('recurring.utils', () => {
         ['Renta', '2026-03-25', 'pendiente'],
         ['Netflix', '2026-04-15', 'pendiente'],
       ]);
+    });
+  });
+
+  describe('tipos de pago', () => {
+    const moto = rec({ id: 'm', name: 'Crédito moto', match: 'credito moto', kind: 'plazos', amount: 3000, day: 27, installments: 4, startMonth: '2026-02', subscription: false });
+
+    it('a plazos: solo vence entre el primer y el último pago y cuenta su avance', () => {
+      expect(dueDatesBetween(moto, '2026-01-01', '2026-07-31')).toEqual(['2026-02-27', '2026-03-27', '2026-04-27', '2026-05-27']);
+      const pagos = [mv('Deudas', 3000, '2026-02-27', 'Crédito moto'), mv('Deudas', 3000, '2026-03-26', 'Credito moto')];
+      expect(installmentProgress(moto, pagos)).toEqual({ total: 4, paid: 2, remaining: 6000, lastMonth: '2026-05', finished: false });
+      expect(installmentProgress(rec(), pagos)).toBeNull();
+    });
+
+    it('variable: usa el monto capturado del mes, si no el último capturado y si no el estimado', () => {
+      const tarjeta = rec({ kind: 'variable', amount: 5000, amounts: { '2026-02': 6200, '2026-03': 4800 } });
+      expect(amountFor(tarjeta, '2026-03-15')).toBe(4800);
+      expect(amountFor(tarjeta, '2026-05-15')).toBe(4800);
+      expect(amountFor(tarjeta, '2026-01-15')).toBe(5000);
+      expect(currentOccurrence(tarjeta, [], TODAY)?.amount).toBe(4800);
+    });
+
+    it('un vencimiento marcado como pagado cuenta aunque el egreso se haya adelantado más de 10 días', () => {
+      const adelantado = [mv('Deudas', 3000, '2026-02-05', 'Crédito moto')];
+      expect(installmentProgress(moto, adelantado)?.paid).toBe(0);
+      expect(installmentProgress({ ...moto, paidDues: ['2026-02-27'] }, adelantado)?.paid).toBe(1);
+      expect(currentOccurrence({ ...moto, paidDues: ['2026-03-27'] }, [], '2026-03-20')?.status).toBe('pagado');
+    });
+
+    it('único: un solo vencimiento en su fecha', () => {
+      const vacaciones = rec({ kind: 'unico', date: '2026-04-10', day: 10 });
+      expect(dueDatesBetween(vacaciones, '2026-01-01', '2026-12-31')).toEqual(['2026-04-10']);
+    });
+
+    it('el compromiso mensual cuenta el crédito solo en sus meses y no los únicos', () => {
+      const unico = rec({ id: 'u', kind: 'unico', date: '2026-03-25', amount: 9000, subscription: false });
+      expect(recurringTotals([moto, unico], [], TODAY).monthly).toBe(3000);
+      expect(recurringTotals([moto, unico], [], '2026-08-01').monthly).toBe(0);
+      expect(recurringTotals([unico], [], TODAY).pendingThisMonth).toBe(9000);
+    });
+
+    it('valida cada tipo y convierte los gastos planeados anteriores en pagos únicos', () => {
+      expect(sanitizeRecurring({ name: 'Moto', category: 'Deudas', amount: 3000, kind: 'plazos', day: 27, installments: 0, startMonth: '2026-02' })).toBeNull();
+      expect(sanitizeRecurring({ name: 'Moto', category: 'Deudas', amount: 3000, kind: 'plazos', frequency: 'anual', month: 3, day: 27, installments: 4, startMonth: '2026-02' })).toEqual(
+        jasmine.objectContaining({ frequency: 'mensual', month: null, installments: 4 }),
+      );
+      expect(sanitizeRecurring({ name: 'Viaje', category: 'X', amount: 1, kind: 'unico' })).toBeNull();
+      expect(sanitizeRecurring({ name: 'Netflix', category: 'X', amount: 1, frequency: 'mensual', day: 3, amounts: { '2026-01': 9 } })?.amounts).toEqual({});
+      const { data } = sanitizeAppData({ planned: [{ id: 'p1', description: 'Tenencia', category: 'Transporte', amount: 1500, date: '2026-04-30' }] });
+      expect(data.recurring).toEqual([jasmine.objectContaining({ id: 'p1', kind: 'unico', name: 'Tenencia', date: '2026-04-30', day: 30, match: 'tenencia' })]);
     });
   });
 

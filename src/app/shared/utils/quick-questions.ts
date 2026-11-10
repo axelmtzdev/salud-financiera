@@ -434,7 +434,7 @@ function recurringAnswer(movements: readonly Movement[], recurring: readonly Rec
   const totals = recurringTotals(recurring, movements, today);
   const overdue = upcoming.filter((o) => o.status === 'vencido');
   const pending = upcoming.filter((o) => o.status === 'pendiente');
-  const sum = upcoming.reduce((s, o) => s + o.payment.amount, 0);
+  const sum = upcoming.reduce((s, o) => s + o.amount, 0);
 
   let headline: string;
   if (!upcoming.length) headline = 'No tienes pagos fijos pendientes en los próximos 30 días.';
@@ -466,7 +466,7 @@ function recurringAnswer(movements: readonly Movement[], recurring: readonly Rec
     rows: upcoming.map((o) => ({
       label: o.payment.name,
       detail: `${formatDate(o.due, 'short')} · ${o.status === 'vencido' ? 'vencido' : o.daysLeft === 0 ? 'hoy' : `en ${o.daysLeft} días`}`,
-      value: money(o.payment.amount),
+      value: money(o.amount),
       tone: o.status === 'vencido' ? 'expense' : 'neutral',
     })),
   };

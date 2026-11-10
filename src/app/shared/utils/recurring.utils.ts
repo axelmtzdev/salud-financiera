@@ -21,11 +21,39 @@ const PRICE_CHANGE_MIN = 5;
 
 // ---------- Vencimientos ----------
 
-/** Fecha de vencimiento en un mes 'YYYY-MM' (null si un pago anual no toca ese mes). */
-export function dueDateIn(rec: Pick<RecurringPayment, 'frequency' | 'day' | 'month'>, month: string): string | null {
+type DueRule = Pick<RecurringPayment, 'frequency' | 'day' | 'month'> &
+  Partial<Pick<RecurringPayment, 'kind' | 'installments' | 'startMonth' | 'date'>>;
+
+/** Mes del último pago de un crédito a plazos (YYYY-MM). */
+export function lastInstallmentMonth(rec: Pick<RecurringPayment, 'startMonth' | 'installments'>): string | null {
+  return rec.startMonth && rec.installments ? shiftMonthKey(rec.startMonth, rec.installments - 1) : null;
+}
+
+/**
+ * Fecha de vencimiento en un mes 'YYYY-MM', o null si ese mes no toca: un anual fuera de su mes,
+ * un crédito antes del primer pago o después del último, o un pago único de otro mes.
+ */
+export function dueDateIn(rec: DueRule, month: string): string | null {
+  if (rec.kind === 'unico') return rec.date && monthKey(rec.date) === month ? rec.date : null;
+  if (rec.kind === 'plazos') {
+    const last = lastInstallmentMonth({ startMonth: rec.startMonth ?? null, installments: rec.installments ?? null });
+    if (!rec.startMonth || !last || month < rec.startMonth || month > last) return null;
+  }
   if (rec.frequency === 'anual' && Number(month.slice(5)) !== rec.month) return null;
   const day = Math.min(rec.day, daysInMonth(month));
   return `${month}-${String(day).padStart(2, '0')}`;
+}
+
+/**
+ * Monto de un vencimiento. En los de monto variable: el capturado para ese mes; si no hay, el último
+ * capturado antes (lo que pagaste la vez pasada) o el estimado.
+ */
+export function amountFor(rec: RecurringPayment, due: string): number {
+  if (rec.kind !== 'variable') return rec.amount;
+  const month = monthKey(due);
+  if (rec.amounts[month] !== undefined) return rec.amounts[month];
+  const previous = Object.keys(rec.amounts).filter((k) => k < month).sort().at(-1);
+  return previous ? rec.amounts[previous] : rec.amount;
 }
 
 /** Vencimientos entre dos fechas, inclusive. */
@@ -57,11 +85,18 @@ export function findPayment(rec: RecurringPayment, due: string, movements: reado
   return best;
 }
 
+/** ¿Ya se pagó este vencimiento? Por marca explícita ("Marcar pagado") o por un egreso reconocido. */
+export function isDuePaid(rec: RecurringPayment, due: string, movements: readonly Movement[]): boolean {
+  return rec.paidDues.includes(due) || findPayment(rec, due, movements) !== null;
+}
+
 export type OccurrenceStatus = 'pagado' | 'pendiente' | 'vencido';
 
 export interface Occurrence {
   payment: RecurringPayment;
   due: string;
+  /** Monto de este vencimiento (cambia mes a mes en los de monto variable) */
+  amount: number;
   status: OccurrenceStatus;
   /** Días para el vencimiento (negativo si ya pasó) */
   daysLeft: number;
@@ -71,8 +106,8 @@ export interface Occurrence {
 
 function occurrence(rec: RecurringPayment, due: string, movements: readonly Movement[], today: string): Occurrence {
   const paidWith = findPayment(rec, due, movements);
-  const status: OccurrenceStatus = paidWith ? 'pagado' : due < today ? 'vencido' : 'pendiente';
-  return { payment: rec, due, status, daysLeft: daysBetween(today, due), paidWith };
+  const status: OccurrenceStatus = paidWith || rec.paidDues.includes(due) ? 'pagado' : due < today ? 'vencido' : 'pendiente';
+  return { payment: rec, due, amount: amountFor(rec, due), status, daysLeft: daysBetween(today, due), paidWith };
 }
 
 /**
@@ -102,13 +137,39 @@ export function upcomingPayments(
       ),
     )
     .filter((o) => o.status !== 'pagado')
-    .sort((a, b) => a.due.localeCompare(b.due) || b.payment.amount - a.payment.amount);
+    .sort((a, b) => a.due.localeCompare(b.due) || b.amount - a.amount);
+}
+
+export interface InstallmentProgress {
+  total: number;
+  /** Pagos reconocidos (egreso con el texto del pago cerca de cada vencimiento) */
+  paid: number;
+  /** Lo que falta por pagar */
+  remaining: number;
+  /** YYYY-MM del último pago */
+  lastMonth: string;
+  finished: boolean;
+}
+
+/** Avance de un crédito a plazos: cuántos pagos van y cuánto falta. */
+export function installmentProgress(rec: RecurringPayment, movements: readonly Movement[]): InstallmentProgress | null {
+  const lastMonth = lastInstallmentMonth(rec);
+  if (rec.kind !== 'plazos' || !rec.startMonth || !rec.installments || !lastMonth) return null;
+  const dues = dueDatesBetween(rec, monthRange(rec.startMonth).from, monthRange(lastMonth).to);
+  const paid = dues.filter((due) => isDuePaid(rec, due, movements)).length;
+  return {
+    total: rec.installments,
+    paid,
+    remaining: round2((rec.installments - paid) * rec.amount),
+    lastMonth,
+    finished: paid >= rec.installments,
+  };
 }
 
 // ---------- Totales ----------
 
 export interface RecurringTotals {
-  /** Compromiso mensual: mensuales + anuales / 12 */
+  /** Compromiso mensual: mensuales (los variables con su monto de este mes) + anuales / 12 + créditos vigentes este mes */
   monthly: number;
   subscriptionsMonthly: number;
   subscriptionsCount: number;
@@ -121,13 +182,17 @@ export function recurringTotals(
   movements: readonly Movement[],
   today = todayIso(),
 ): RecurringTotals {
-  const perMonth = (r: RecurringPayment) => (r.frequency === 'mensual' ? r.amount : r.amount / 12);
-  const subscriptions = list.filter((r) => r.subscription);
   const { from, to } = monthRange(monthKey(today));
+  const perMonth = (r: RecurringPayment) => {
+    if (r.kind === 'unico') return 0;
+    if (r.kind === 'plazos') return dueDateIn(r, monthKey(today)) ? r.amount : 0;
+    return r.frequency === 'mensual' ? amountFor(r, today) : r.amount / 12;
+  };
+  const subscriptions = list.filter((r) => r.subscription);
   const pendingThisMonth = list
     .flatMap((r) => dueDatesBetween(r, from, to).map((d) => occurrence(r, d, movements, today)))
     .filter((o) => o.status !== 'pagado')
-    .reduce((sum, o) => sum + o.payment.amount, 0);
+    .reduce((sum, o) => sum + o.amount, 0);
   return {
     monthly: round2(list.reduce((sum, r) => sum + perMonth(r), 0)),
     subscriptionsMonthly: round2(subscriptions.reduce((sum, r) => sum + perMonth(r), 0)),
@@ -147,6 +212,8 @@ export interface PriceChange {
 
 /** Compara el último cargo reconocido (últimos 60 días) contra el monto esperado. */
 export function priceChange(rec: RecurringPayment, movements: readonly Movement[], today = todayIso()): PriceChange | null {
+  // Solo aplica a montos fijos: en los variables cambiar es lo normal y un crédito no sube de precio
+  if (rec.kind !== 'fijo') return null;
   const since = addDays(today, -60);
   const last = movements
     .filter((m) => m.date >= since && m.date <= today && matchesPayment(rec, m))

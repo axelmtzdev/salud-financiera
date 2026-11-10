@@ -1,9 +1,9 @@
 <div class="page">
   <header class="page-header">
     <div>
-      <span class="eyebrow">Pagos recurrentes</span>
-      <h1 class="page-title">Tus pagos fijos y suscripciones</h1>
-      <p class="page-subtitle">Lo que pagas cada mes o cada año: qué viene, qué ya pagaste y cuánto te comprometen.</p>
+      <span class="eyebrow">Pagos</span>
+      <h1 class="page-title">Lo que tienes que pagar</h1>
+      <p class="page-subtitle">Suscripciones, créditos a plazos, tarjetas y pagos únicos: qué viene, qué ya pagaste y cuánto te comprometen.</p>
     </div>
     @if (recurring.hasAny()) {
       <div class="page-actions">
@@ -18,10 +18,10 @@
     <app-card>
       <div class="empty-state intro">
         <span class="empty-state__icon"><svg lucideIcon="repeat" [size]="20" [strokeWidth]="1.75" aria-hidden="true"></svg></span>
-        <h3>Aún no tienes pagos recurrentes</h3>
+        <h3>Aún no tienes pagos registrados</h3>
         <p>
-          Registra la renta, los servicios y tus suscripciones para saber qué viene, avisarte si algo cambia de precio y
-          ver cuánto se va al mes en pagos fijos.
+          Registra la renta, tus suscripciones, créditos a plazos y el pago de tus tarjetas para saber qué viene, avisarte si
+          algo cambia de precio y ver cuánto se va al mes. También gastos de una sola vez, como unas vacaciones.
         </p>
         <div class="empty-state__actions">
           <button type="button" class="pc-boton boton-elevado" (click)="openNew()">
@@ -37,7 +37,7 @@
       <app-stat-tile label="Suscripciones" [value]="fmt(t.subscriptionsMonthly)" [hint]="t.subscriptionsCount + (t.subscriptionsCount === 1 ? ' suscripción' : ' suscripciones') + ' · por mes'" />
       <app-stat-tile label="Falta pagar este mes" [value]="fmt(t.pendingThisMonth)" />
       @if (next(); as n) {
-        <app-stat-tile [label]="'Próximo: ' + n.payment.name" [value]="fmt(n.payment.amount)" [hint]="(n.due | dateFormat: 'short') + ' · ' + whenLabel(n)" />
+        <app-stat-tile [label]="'Próximo: ' + n.payment.name" [value]="fmt(n.amount)" [hint]="(n.due | dateFormat: 'short') + ' · ' + whenLabel(n)" />
       } @else {
         <app-stat-tile label="Próximo pago" value="—" hint="Nada en los próximos 30 días" />
       }
@@ -67,9 +67,32 @@
                 <span class="pago__nombre">{{ o.payment.name }}</span>
                 <span class="pago__detalle">
                   <span class="punto" [style.background]="finance.colorOf('egreso', o.payment.category)"></span>{{ o.payment.category }}
+                  @if (o.payment.kind === 'variable') {
+                    · <button type="button" class="link-btn" (click)="startAdjust(o)">Ajustar monto</button>
+                  }
                 </span>
               </span>
-              <span class="pago__monto amount pc-num">{{ o.payment.amount | currencyFormat }}</span>
+              @if (adjusting() === occurrenceKey(o)) {
+                <span class="ajuste">
+                  <span class="input-group">
+                    <span class="input-prefix">$</span>
+                    <input
+                      class="input pc-num"
+                      inputmode="decimal"
+                      [attr.aria-label]="'Monto de ' + o.payment.name + ' este mes'"
+                      [value]="adjustValue()"
+                      (input)="adjustValue.set($any($event.target).value)"
+                      (keydown.enter)="saveAdjust(o)"
+                      (keydown.escape)="adjusting.set(null)"
+                    />
+                  </span>
+                  <button type="button" class="icon-btn" (click)="saveAdjust(o)" title="Guardar monto" aria-label="Guardar monto">
+                    <svg lucideIcon="check" [size]="15" [strokeWidth]="2.5" aria-hidden="true"></svg>
+                  </button>
+                </span>
+              } @else {
+                <span class="pago__monto amount pc-num">{{ o.amount | currencyFormat }}</span>
+              }
               <span class="pago__estado">
                 <span class="pill" [class.pill--egreso]="o.status === 'vencido'" [class.pill--muted]="o.status !== 'vencido'">
                   <span class="punto"></span>{{ whenLabel(o) }}
@@ -101,12 +124,20 @@
                 <span class="punto" [style.background]="finance.colorOf('egreso', row.payment.category)"></span>
                 {{ row.payment.category }} · {{ schedule(row.payment) }}
               </span>
+              @if (row.progress; as p) {
+                <span class="plazos">
+                  <span class="plazos__barra" aria-hidden="true"><span [style.width.%]="(p.paid / p.total) * 100"></span></span>
+                  <span class="plazos__texto pc-num">{{ progressText(p) }}</span>
+                </span>
+              }
             </span>
             <span class="pago__monto amount pc-num">
-              {{ row.payment.amount | currencyFormat }}<span class="periodo">/{{ row.payment.frequency === 'mensual' ? 'mes' : 'año' }}</span>
+              {{ rowAmount(row) | currencyFormat }}<span class="periodo">{{ period(row.payment) }}</span>
             </span>
             <span class="pago__estado">
-              @if (row.occurrence; as o) {
+              @if (row.progress?.finished) {
+                <span class="pill pill--ingreso"><span class="punto"></span>Liquidado</span>
+              } @else if (row.occurrence; as o) {
                 <span
                   class="pill"
                   [class.pill--ingreso]="o.status === 'pagado'"
@@ -176,17 +207,31 @@
 
   @if (formOpen()) {
     <app-card id="pago-form" [title]="editingId() ? 'Editar pago' : 'Nuevo pago'" subtitle="Se marca como pagado solo cuando registras el egreso" class="mov-entrar">
+      <div class="field tipo">
+        <span class="field-label" id="r-kind">Tipo de pago</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="r-kind">
+          @for (k of kinds; track k.value) {
+            <button type="button" role="radio" [class.active]="kind() === k.value" [attr.aria-checked]="kind() === k.value" (click)="kind.set(k.value); formError.set(null)">
+              {{ k.label }}
+            </button>
+          }
+        </div>
+        <span class="field-hint">{{ kindHint() }}</span>
+      </div>
       <div class="form-grid form-grid--2">
         <div class="field">
           <label class="field-label" for="r-name">Nombre</label>
           <input id="r-name" class="input" maxlength="60" placeholder="Ej. Netflix, Renta, Luz" [value]="name()" (input)="name.set($any($event.target).value); formError.set(null)" />
         </div>
         <div class="field">
-          <label class="field-label" for="r-amount">Monto</label>
+          <label class="field-label" for="r-amount">{{ kind() === 'plazos' ? 'Monto de cada pago' : kind() === 'variable' ? 'Monto estimado' : 'Monto' }}</label>
           <div class="input-group">
             <span class="input-prefix">$</span>
             <input id="r-amount" class="input pc-num" inputmode="decimal" placeholder="0.00" [value]="amount()" (input)="amount.set($any($event.target).value); formError.set(null)" />
           </div>
+          @if (kind() === 'variable') {
+            <span class="field-hint">Se usa mientras no captures el monto real de cada mes ("Ajustar monto").</span>
+          }
         </div>
         <div class="field">
           <label class="field-label" for="r-category">Categoría</label>
@@ -197,25 +242,49 @@
             }
           </select>
         </div>
-        <div class="field">
-          <span class="field-label" id="r-frequency">Frecuencia</span>
-          <div class="segmented frecuencia" role="radiogroup" aria-labelledby="r-frequency">
-            <button type="button" role="radio" [class.active]="frequency() === 'mensual'" [attr.aria-checked]="frequency() === 'mensual'" (click)="frequency.set('mensual')">Mensual</button>
-            <button type="button" role="radio" [class.active]="frequency() === 'anual'" [attr.aria-checked]="frequency() === 'anual'" (click)="frequency.set('anual')">Anual</button>
+        @if (kind() === 'fijo') {
+          <div class="field">
+            <span class="field-label" id="r-frequency">Frecuencia</span>
+            <div class="segmented frecuencia" role="radiogroup" aria-labelledby="r-frequency">
+              <button type="button" role="radio" [class.active]="frequency() === 'mensual'" [attr.aria-checked]="frequency() === 'mensual'" (click)="frequency.set('mensual')">Mensual</button>
+              <button type="button" role="radio" [class.active]="frequency() === 'anual'" [attr.aria-checked]="frequency() === 'anual'" (click)="frequency.set('anual')">Anual</button>
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label class="field-label" for="r-day">Día de vencimiento</label>
-          <select id="r-day" class="input" [value]="day()" (change)="day.set(+$any($event.target).value)">
-            @for (d of days; track d) {
-              <option [value]="d" [selected]="d === day()">{{ d }}</option>
+        }
+        @if (kind() === 'plazos') {
+          <div class="field">
+            <label class="field-label" for="r-installments">Número de pagos</label>
+            <input id="r-installments" class="input pc-num" type="number" inputmode="numeric" min="1" max="360" placeholder="Ej. 12" [value]="installments()" (input)="installments.set($any($event.target).value); formError.set(null)" />
+            <span class="field-hint">Si ya llevas pagos, pon solo los que faltan.</span>
+          </div>
+          <div class="field">
+            <label class="field-label" for="r-start">Primer pago</label>
+            <input id="r-start" class="input" type="month" [value]="startMonth()" (input)="startMonth.set($any($event.target).value); formError.set(null)" />
+            @if (lastMonthPreview(); as last) {
+              <span class="field-hint">Último pago en {{ last }}.</span>
             }
-          </select>
-          @if (day() > 28) {
-            <span class="field-hint">En meses más cortos vence el último día.</span>
-          }
-        </div>
-        @if (frequency() === 'anual') {
+          </div>
+        }
+        @if (kind() === 'unico') {
+          <div class="field">
+            <label class="field-label" for="r-date">Fecha</label>
+            <input id="r-date" class="input" type="date" [value]="date()" (input)="date.set($any($event.target).value); formError.set(null)" />
+          </div>
+        }
+        @if (kind() !== 'unico') {
+          <div class="field">
+            <label class="field-label" for="r-day">Día de vencimiento</label>
+            <select id="r-day" class="input" [value]="day()" (change)="day.set(+$any($event.target).value)">
+              @for (d of days; track d) {
+                <option [value]="d" [selected]="d === day()">{{ d }}</option>
+              }
+            </select>
+            @if (day() > 28) {
+              <span class="field-hint">En meses más cortos vence el último día.</span>
+            }
+          </div>
+        }
+        @if (kind() === 'fijo' && frequency() === 'anual') {
           <div class="field mov-entrar">
             <label class="field-label" for="r-month">Mes</label>
             <select id="r-month" class="input" [value]="month()" (change)="month.set(+$any($event.target).value)">
@@ -233,10 +302,12 @@
             Los cargos del iPhone llegan con el nombre del comercio (por ejemplo "NETFLIX.COM").
           </span>
         </div>
-        <label class="check span-2">
-          <input type="checkbox" [checked]="subscription()" (change)="subscription.set($any($event.target).checked)" />
-          Es una suscripción (streaming, apps, gimnasio…)
-        </label>
+        @if (kind() === 'fijo') {
+          <label class="check span-2">
+            <input type="checkbox" [checked]="subscription()" (change)="subscription.set($any($event.target).checked)" />
+            Es una suscripción (streaming, apps, gimnasio…)
+          </label>
+        }
       </div>
       @if (formError(); as message) {
         <p class="field-error" role="alert">{{ message }}</p>

@@ -34,7 +34,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     // Aquí entrarán también tarjetas y MSI
     label: 'Planear',
     links: [
-      { path: '/pagos', label: 'Pagos recurrentes', icon: 'repeat', exact: false },
+      { path: '/pagos', label: 'Pagos', icon: 'repeat', exact: false },
       { path: '/metas', label: 'Metas', icon: 'flag', exact: false },
       { path: '/proyeccion', label: 'Proyección', icon: 'trending-up', exact: false },
     ],

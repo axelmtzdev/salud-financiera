@@ -165,3 +165,33 @@
 
   .form-acciones .pc-boton { flex: 1; height: 44px; }
 }
+
+.tipo { margin-bottom: 16px; }
+
+.ajuste {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  .input-group { width: 120px; }
+}
+
+.plazos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 4px;
+}
+
+.plazos__barra {
+  flex: 0 0 80px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  overflow: hidden;
+
+  span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+}
+
+.plazos__texto { font-size: 11px; color: var(--texto-tenue); white-space: nowrap; }

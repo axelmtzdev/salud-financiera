@@ -13,7 +13,8 @@ import {
   MovementType,
   PendingMovement,
   OpeningBalance,
-  PlannedExpense,
+  PAYMENT_KINDS,
+  PaymentKind,
   RecurringPayment,
   Transfer,
   createEmptyData,
@@ -63,7 +64,7 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
       pending: sanitizeList(raw['pending'], sanitizePending).slice(-MAX_PENDING),
       rules: sanitizeList(raw['rules'], sanitizeRule),
       budgets: sanitizeBudgets(raw['budgets']),
-      recurring: sanitizeList(raw['recurring'], sanitizeRecurring),
+      recurring: withLegacyPlanned(sanitizeList(raw['recurring'], sanitizeRecurring), raw['planned']),
       recurringIgnored: Array.isArray(raw['recurringIgnored'])
         ? [...new Set(raw['recurringIgnored'].filter(nonEmptyString).map((k) => normalizeText(k).slice(0, 80)))]
         : [],
@@ -71,7 +72,6 @@ export function sanitizeAppData(raw: unknown): SanitizeResult {
       opening: sanitizeOpening(raw['opening']),
       goals: sanitizeList(raw['goals'], sanitizeGoal),
       contributions: sanitizeList(raw['contributions'], sanitizeContribution),
-      planned: sanitizeList(raw['planned'], sanitizePlanned),
     },
     discarded,
   };
@@ -106,19 +106,20 @@ export function sanitizeContribution(raw: unknown): GoalContribution | null {
   return { id: nonEmptyString(id) ? id : uuid(), goalId, account, amount: round2(amount), date, createdAt: validTimestamp(createdAt) };
 }
 
-export function sanitizePlanned(raw: unknown): PlannedExpense | null {
-  if (!isRecord(raw)) return null;
-  const { id, description, category, amount, date, createdAt } = raw;
-  if (!nonEmptyString(description) || !nonEmptyString(category) || !validAmount(amount) || !isValidIsoDate(date)) return null;
-  return {
-    id: nonEmptyString(id) ? id : uuid(),
-    description: collapseSpaces(description).slice(0, 60),
-    category: collapseSpaces(category).slice(0, 40),
-    amount: round2(amount),
-    date,
-    createdAt: validTimestamp(createdAt),
-  };
+/**
+ * Los "gastos planeados" de la versión anterior (que vivían en Proyección) ahora son pagos únicos.
+ * Llegan así de cachés o respaldos viejos; se agregan si no existen ya.
+ */
+function withLegacyPlanned(recurring: RecurringPayment[], rawPlanned: unknown): RecurringPayment[] {
+  if (!Array.isArray(rawPlanned)) return recurring;
+  const ids = new Set(recurring.map((r) => r.id));
+  const converted = rawPlanned
+    .map((p) => (isRecord(p) ? sanitizeRecurring({ ...p, name: p['description'], kind: 'unico', frequency: 'mensual', day: 1 }) : null))
+    .filter((r): r is RecurringPayment => r !== null && !ids.has(r.id));
+  return [...recurring, ...converted];
 }
+
+const isMonthKey = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 
 export function sanitizeTransfer(raw: unknown): Transfer | null {
   if (!isRecord(raw)) return null;
@@ -153,26 +154,44 @@ export function sanitizeOpening(raw: unknown): OpeningBalance | null {
 
 export function sanitizeRecurring(raw: unknown): RecurringPayment | null {
   if (!isRecord(raw)) return null;
-  const { id, name, category, amount, frequency, day, month, match, subscription, createdAt } = raw;
+  const { id, name, category, amount, frequency, month, match, subscription, createdAt, installments, startMonth, date, amounts, paidDues } = raw;
+  // Los pagos registrados antes de los tipos son fijos
+  const kind: PaymentKind = PAYMENT_KINDS.includes(raw['kind'] as PaymentKind) ? (raw['kind'] as PaymentKind) : 'fijo';
   if (!nonEmptyString(name) || !nonEmptyString(category)) return null;
   if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) return null;
-  if (frequency !== 'mensual' && frequency !== 'anual') return null;
+  if (kind === 'unico' && !isValidIsoDate(date)) return null;
+  if (kind === 'plazos' && (!Number.isInteger(installments) || (installments as number) < 1 || (installments as number) > 360 || !isMonthKey(startMonth))) {
+    return null;
+  }
+  // Solo los fijos pueden ser anuales; el día de un pago único sale de su fecha
+  const freq = kind === 'fijo' ? frequency : 'mensual';
+  if (freq !== 'mensual' && freq !== 'anual') return null;
+  const day = kind === 'unico' ? Number((date as string).slice(8)) : raw['day'];
   if (!Number.isInteger(day) || (day as number) < 1 || (day as number) > 31) return null;
   const validMonth = Number.isInteger(month) && (month as number) >= 1 && (month as number) <= 12;
-  if (frequency === 'anual' && !validMonth) return null;
+  if (freq === 'anual' && !validMonth) return null;
   const cleanName = collapseSpaces(name).slice(0, 60);
+  const monthAmounts: Record<string, number> = {};
+  if (kind === 'variable' && isRecord(amounts)) {
+    for (const [key, value] of Object.entries(amounts)) if (isMonthKey(key) && validAmount(value)) monthAmounts[key] = round2(value);
+  }
   return {
     id: nonEmptyString(id) ? id : uuid(),
     name: cleanName,
     category: collapseSpaces(category).slice(0, 40),
     amount: round2(amount),
-    frequency,
+    frequency: freq,
     day: day as number,
-    month: frequency === 'anual' ? (month as number) : null,
+    month: freq === 'anual' ? (month as number) : null,
     match: normalizeText(nonEmptyString(match) ? match : cleanName).slice(0, 60),
-    subscription: subscription === true,
-    createdAt:
-      typeof createdAt === 'string' && !Number.isNaN(Date.parse(createdAt)) ? createdAt : new Date().toISOString(),
+    subscription: kind === 'fijo' && subscription === true,
+    createdAt: validTimestamp(createdAt),
+    kind,
+    installments: kind === 'plazos' ? (installments as number) : null,
+    startMonth: kind === 'plazos' ? (startMonth as string) : null,
+    date: kind === 'unico' ? (date as string) : null,
+    amounts: monthAmounts,
+    paidDues: Array.isArray(paidDues) ? [...new Set(paidDues.filter(isValidIsoDate))].sort().slice(-400) : [],
   };
 }
 

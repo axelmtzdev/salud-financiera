@@ -1,8 +1,8 @@
-import { Goal, GoalContribution, Movement, PlannedExpense, RecurringPayment } from '../models/finance.models';
+import { Goal, GoalContribution, Movement, RecurringPayment } from '../models/finance.models';
 import { lastMonthKeys, monthKey, monthLabel, monthRange, shiftMonthKey } from './date.utils';
 import { round2 } from './format.utils';
 import { goalProgress } from './goals.utils';
-import { dueDatesBetween, findPayment, matchesPayment } from './recurring.utils';
+import { amountFor, dueDatesBetween, isDuePaid, matchesPayment } from './recurring.utils';
 
 /** Meses cerrados con los que se estima el ingreso y el gasto variable. */
 export const PROJECTION_BASIS_MONTHS = 3;
@@ -11,9 +11,11 @@ export interface ProjectionMonth {
   key: string;
   label: string;
   income: number;
-  /** Gasto del día a día (sin pagos recurrentes) */
+  /** Gasto del día a día (sin pagos registrados en Pagos) */
   variable: number;
+  /** Pagos que se repiten: fijos, créditos a plazos y variables */
   recurring: number;
+  /** Pagos únicos */
   planned: number;
   /** Lo que habría que apartar para las metas con fecha */
   goals: number;
@@ -45,8 +47,8 @@ export interface ProjectionInput {
   /** Meses a proyectar, empezando por el actual */
   horizon: number;
   movements: readonly Movement[];
+  /** Todos los pagos de la sección Pagos (incluidos los únicos) */
   recurring: readonly RecurringPayment[];
-  planned: readonly PlannedExpense[];
   goals: readonly Goal[];
   contributions: readonly GoalContribution[];
 }
@@ -72,12 +74,12 @@ export function projectionBasis(movements: readonly Movement[], recurring: reado
 }
 
 /**
- * Saldo libre al cierre de cada mes: ingresos y gasto variable promedio, pagos recurrentes por su
- * fecha, gastos planeados y lo que conviene apartar para las metas. Del mes en curso solo cuenta
- * lo que falta: el promedio menos lo que ya pasó y los pagos que siguen pendientes.
+ * Saldo libre al cierre de cada mes: ingresos y gasto variable promedio, los pagos de la sección
+ * Pagos en su fecha (con el monto de ese mes) y lo que conviene apartar para las metas. Del mes en
+ * curso solo cuenta lo que falta: el promedio menos lo que ya pasó y los pagos que siguen pendientes.
  */
 export function projectBalance(input: ProjectionInput): Projection {
-  const { today, movements, recurring, planned } = input;
+  const { today, movements, recurring } = input;
   const basis = projectionBasis(movements, recurring, today);
   const current = monthKey(today);
   const thisMonth = movements.filter((m) => monthKey(m.date) === current && m.date <= today);
@@ -96,18 +98,19 @@ export function projectBalance(input: ProjectionInput): Projection {
     const key = shiftMonthKey(current, i);
     const { from, to } = monthRange(key);
     const isCurrent = i === 0;
-    const pendingFrom = isCurrent ? today : from;
 
     const income = isCurrent ? Math.max(0, basis.avgIncome - incomeSoFar) : basis.avgIncome;
     const variable = isCurrent ? Math.max(0, basis.avgVariable - variableSoFar) : basis.avgVariable;
     let recurringTotal = 0;
+    let plannedTotal = 0;
     for (const rec of recurring) {
       for (const due of dueDatesBetween(rec, from, to)) {
         // Del mes en curso: lo que no se ha pagado (aunque ya haya vencido)
-        if (isCurrent ? !findPayment(rec, due, movements) : true) recurringTotal += rec.amount;
+        if (isCurrent && isDuePaid(rec, due, movements)) continue;
+        if (rec.kind === 'unico') plannedTotal += amountFor(rec, due);
+        else recurringTotal += amountFor(rec, due);
       }
     }
-    const plannedTotal = planned.filter((p) => p.date >= pendingFrom && p.date <= to).reduce((s, p) => s + p.amount, 0);
     const goals = goalPlans.filter((g) => key <= g.until).reduce((s, g) => s + g.monthly, 0);
 
     const net = round2(income - variable - recurringTotal - plannedTotal - goals);

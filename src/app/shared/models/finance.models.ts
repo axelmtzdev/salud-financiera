@@ -65,17 +65,6 @@ export interface GoalContribution {
   createdAt: string;
 }
 
-/** Gasto futuro conocido, para la proyección (ej. "Vacaciones", "Tenencia"). */
-export interface PlannedExpense {
-  id: string;
-  description: string;
-  category: string;
-  amount: number;
-  /** YYYY-MM-DD */
-  date: string;
-  createdAt: string;
-}
-
 export type MovementInput = Omit<Movement, 'id' | 'createdAt'>;
 
 /** Cuenta del usuario (vive en el servidor). */
@@ -131,11 +120,17 @@ export interface AppData {
   opening: OpeningBalance | null;
   goals: Goal[];
   contributions: GoalContribution[];
-  /** Gastos futuros para la proyección */
-  planned: PlannedExpense[];
 }
 
 export type RecurringFrequency = 'mensual' | 'anual';
+
+/**
+ * fijo: mismo monto, mensual o anual (renta, suscripciones). plazos: mensual con un número de pagos
+ * (crédito de la moto). variable: mensual con monto que cambia (tarjeta de crédito). unico: una sola fecha.
+ */
+export type PaymentKind = 'fijo' | 'plazos' | 'variable' | 'unico';
+
+export const PAYMENT_KINDS: readonly PaymentKind[] = ['fijo', 'plazos', 'variable', 'unico'];
 
 export interface RecurringPayment {
   id: string;
@@ -153,6 +148,17 @@ export interface RecurringPayment {
   match: string;
   subscription: boolean;
   createdAt: string;
+  kind: PaymentKind;
+  /** plazos: número total de pagos */
+  installments: number | null;
+  /** plazos: mes del primer pago (YYYY-MM) */
+  startMonth: string | null;
+  /** unico: fecha del pago (YYYY-MM-DD) */
+  date: string | null;
+  /** variable: monto real por mes (YYYY-MM → monto); `amount` es el estimado */
+  amounts: Record<string, number>;
+  /** Vencimientos (YYYY-MM-DD) marcados como pagados desde la app, aunque el egreso caiga lejos de la fecha */
+  paidDues: string[];
 }
 
 export interface Budget {
@@ -204,5 +210,5 @@ export interface Insight {
 }
 
 export function createEmptyData(): AppData {
-  return { version: 1, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [], transfers: [], opening: null, goals: [], contributions: [], planned: [] };
+  return { version: 1, movements: [], categories: { ingreso: [], egreso: [] }, pending: [], rules: [], budgets: [], recurring: [], recurringIgnored: [], transfers: [], opening: null, goals: [], contributions: [] };
 }

@@ -298,8 +298,12 @@ const TOOLS: readonly ToolSpec[] = [
           const o = currentOccurrence(r, data.movements, today);
           return {
             nombre: r.name,
+            tipo: r.kind,
             categoria: r.category,
-            monto: r.amount,
+            monto: o ? o.amount : r.amount,
+            numeroDePagos: r.installments,
+            primerPago: r.startMonth,
+            fechaUnica: r.date,
             frecuencia: r.frequency,
             dia: r.day,
             mes: r.month,
@@ -311,7 +315,7 @@ const TOOLS: readonly ToolSpec[] = [
           nombre: o.payment.name,
           fecha: o.due,
           estado: o.status,
-          monto: o.payment.amount,
+          monto: o.amount,
         })),
         cambiosDePrecio: data.recurring
           .map((r) => priceChange(r, data.movements, today))

@@ -183,7 +183,7 @@ describe('quick-questions', () => {
   });
 
   describe('recurring', () => {
-    const base = { category: 'Vivienda', frequency: 'mensual' as const, month: null, subscription: false, createdAt: '2026-01-01T00:00:00.000Z' };
+    const base = { category: 'Vivienda', frequency: 'mensual' as const, month: null, subscription: false, createdAt: '2026-01-01T00:00:00.000Z', kind: 'fijo' as const, installments: null, startMonth: null, date: null, amounts: {}, paidDues: [] };
     const recurring = [
       { ...base, id: 'r1', name: 'Renta', amount: 12000, day: 2, match: 'renta' },
       { ...base, id: 'r2', name: 'Gimnasio', category: 'Salud', amount: 600, day: 25, match: 'gimnasio', subscription: true },
