@@ -4,6 +4,7 @@ import {
   amountFor,
   currentOccurrence,
   installmentProgress,
+  monthCoverage,
   detectRecurring,
   dueDateIn,
   dueDatesBetween,
@@ -134,6 +135,31 @@ describe('recurring.utils', () => {
       expect(sanitizeRecurring({ name: 'Netflix', category: 'X', amount: 1, frequency: 'mensual', day: 3, amounts: { '2026-01': 9 } })?.amounts).toEqual({});
       const { data } = sanitizeAppData({ planned: [{ id: 'p1', description: 'Tenencia', category: 'Transporte', amount: 1500, date: '2026-04-30' }] });
       expect(data.recurring).toEqual([jasmine.objectContaining({ id: 'p1', kind: 'unico', name: 'Tenencia', date: '2026-04-30', day: 30, match: 'tenencia' })]);
+    });
+  });
+
+  describe('cobertura del mes', () => {
+    // Marzo: Netflix (15, pagado), renta (25) y un pago único (28)
+    const list = [
+      rec({ amount: 300 }),
+      rec({ id: 'r2', name: 'Renta', match: 'renta', amount: 12000, day: 25, subscription: false }),
+      rec({ id: 'r3', name: 'Dentista', match: 'dentista', amount: 1700, kind: 'unico', date: '2026-03-28', day: 28, subscription: false }),
+    ];
+    const paid = [mv('Entretenimiento', 300, '2026-03-15', 'Netflix')];
+
+    it('suma lo comprometido, lo pagado y lo pendiente del mes', () => {
+      expect(monthCoverage(list, paid, 20000, TODAY)).toEqual(
+        jasmine.objectContaining({ total: 14000, paid: 300, pending: 13700, count: 3, pendingCount: 2, after: 6300, level: 'cubierto' }),
+      );
+    });
+
+    it('justo si queda menos del 10 % del saldo libre y en riesgo si no alcanza', () => {
+      expect(monthCoverage(list, paid, 15000, TODAY).level).toBe('justo');
+      expect(monthCoverage(list, paid, 10000, TODAY)).toEqual(jasmine.objectContaining({ after: -3700, level: 'riesgo' }));
+    });
+
+    it('sin saldo inicial no compara', () => {
+      expect(monthCoverage(list, paid, null, TODAY)).toEqual(jasmine.objectContaining({ pending: 13700, after: null, level: null }));
     });
   });
 

@@ -201,6 +201,48 @@ export function recurringTotals(
   };
 }
 
+// ---------- Cobertura del mes ----------
+
+/** Por debajo de esta parte del saldo libre, lo que queda después de pagar se considera "justo". */
+export const COVERAGE_TIGHT_RATIO = 0.1;
+
+export type CoverageLevel = 'cubierto' | 'justo' | 'riesgo';
+
+export interface MonthCoverage {
+  /** Todo lo que vence este mes */
+  total: number;
+  paid: number;
+  pending: number;
+  count: number;
+  pendingCount: number;
+  /** Saldo libre de hoy (null sin saldo inicial: no se puede comparar) */
+  free: number | null;
+  /** Lo que quedaría libre después de cubrir lo pendiente (negativo = faltante) */
+  after: number | null;
+  level: CoverageLevel | null;
+}
+
+/**
+ * Pagos comprometidos en el mes de `today` contra el saldo libre: si alcanza, si queda justo
+ * (menos del 10 % del saldo libre después de pagar) o si no alcanza. No cuenta ingresos futuros.
+ */
+export function monthCoverage(
+  list: readonly RecurringPayment[],
+  movements: readonly Movement[],
+  free: number | null,
+  today = todayIso(),
+): MonthCoverage {
+  const { from, to } = monthRange(monthKey(today));
+  const occurrences = list.flatMap((r) => dueDatesBetween(r, from, to).map((d) => occurrence(r, d, movements, today)));
+  const pendingList = occurrences.filter((o) => o.status !== 'pagado');
+  const total = round2(occurrences.reduce((sum, o) => sum + o.amount, 0));
+  const pending = round2(pendingList.reduce((sum, o) => sum + o.amount, 0));
+  const after = free === null ? null : round2(free - pending);
+  const level: CoverageLevel | null =
+    after === null ? null : after < 0 ? 'riesgo' : pending > 0 && after < free! * COVERAGE_TIGHT_RATIO ? 'justo' : 'cubierto';
+  return { total, paid: round2(total - pending), pending, count: occurrences.length, pendingCount: pendingList.length, free, after, level };
+}
+
 // ---------- Cambios de precio ----------
 
 export interface PriceChange {
