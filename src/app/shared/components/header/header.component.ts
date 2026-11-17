@@ -20,6 +20,9 @@ const THEME_OPTIONS: { value: ThemePreference; icon: string; label: string }[] =
     </a>
 
     <div class="actions">
+      @if (saving()) {
+        <span class="guardando" role="status"><span class="spinner" aria-hidden="true"></span><span class="guardando__texto">Guardando…</span></span>
+      }
       <div class="theme segmented" role="radiogroup" aria-label="Tema">
         @for (o of themeOptions; track o.value) {
           <button
@@ -81,6 +84,19 @@ const THEME_OPTIONS: { value: ThemePreference; icon: string; label: string }[] =
       box-shadow: var(--sombra-primario);
     }
     .brand__name { font-size: 15px; font-weight: 600; letter-spacing: -0.025em; white-space: nowrap; }
+    .guardando {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--texto-activo);
+      background: var(--accent);
+      animation: mov-aparecer var(--duracion-fundido) ease-out;
+    }
+    @media (max-width: 480px) { .guardando__texto { display: none; } .guardando { padding: 6px; } }
     .actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .theme { height: auto; }
     .theme button { height: 28px; width: 32px; padding: 0; display: grid; place-items: center; flex: 0 0 auto; }
@@ -115,6 +131,8 @@ const THEME_OPTIONS: { value: ThemePreference; icon: string; label: string }[] =
 })
 export class HeaderComponent {
   readonly userName = input.required<string>();
+  /** Hay cambios que el servidor aún no confirma */
+  readonly saving = input(false);
   readonly logout = output<void>();
 
   protected readonly theme = inject(ThemeService);

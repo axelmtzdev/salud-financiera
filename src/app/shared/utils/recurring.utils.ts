@@ -22,7 +22,7 @@ const PRICE_CHANGE_MIN = 5;
 // ---------- Vencimientos ----------
 
 type DueRule = Pick<RecurringPayment, 'frequency' | 'day' | 'month'> &
-  Partial<Pick<RecurringPayment, 'kind' | 'installments' | 'startMonth' | 'date'>>;
+  Partial<Pick<RecurringPayment, 'kind' | 'installments' | 'startMonth' | 'date' | 'secondDay'>>;
 
 /** Mes del último pago de un crédito a plazos (YYYY-MM). */
 export function lastInstallmentMonth(rec: Pick<RecurringPayment, 'startMonth' | 'installments'>): string | null {
@@ -34,14 +34,19 @@ export function lastInstallmentMonth(rec: Pick<RecurringPayment, 'startMonth' | 
  * un crédito antes del primer pago o después del último, o un pago único de otro mes.
  */
 export function dueDateIn(rec: DueRule, month: string): string | null {
-  if (rec.kind === 'unico') return rec.date && monthKey(rec.date) === month ? rec.date : null;
+  return dueDatesIn(rec, month)[0] ?? null;
+}
+
+/** Todos los vencimientos de un mes: uno, o dos si se repite en otro día (ej. quincenas). */
+export function dueDatesIn(rec: DueRule, month: string): string[] {
+  if (rec.kind === 'unico') return rec.date && monthKey(rec.date) === month ? [rec.date] : [];
   if (rec.kind === 'plazos') {
     const last = lastInstallmentMonth({ startMonth: rec.startMonth ?? null, installments: rec.installments ?? null });
-    if (!rec.startMonth || !last || month < rec.startMonth || month > last) return null;
+    if (!rec.startMonth || !last || month < rec.startMonth || month > last) return [];
   }
-  if (rec.frequency === 'anual' && Number(month.slice(5)) !== rec.month) return null;
-  const day = Math.min(rec.day, daysInMonth(month));
-  return `${month}-${String(day).padStart(2, '0')}`;
+  if (rec.frequency === 'anual' && Number(month.slice(5)) !== rec.month) return [];
+  const days = [rec.day, ...(rec.secondDay ? [rec.secondDay] : [])].map((d) => Math.min(d, daysInMonth(month)));
+  return [...new Set(days)].sort((a, b) => a - b).map((d) => `${month}-${String(d).padStart(2, '0')}`);
 }
 
 /**
@@ -60,15 +65,14 @@ export function amountFor(rec: RecurringPayment, due: string): number {
 export function dueDatesBetween(rec: RecurringPayment, from: string, to: string): string[] {
   const dates: string[] = [];
   for (let key = monthKey(from); key <= monthKey(to); key = shiftMonthKey(key, 1)) {
-    const due = dueDateIn(rec, key);
-    if (due && due >= from && due <= to) dates.push(due);
+    for (const due of dueDatesIn(rec, key)) if (due >= from && due <= to) dates.push(due);
   }
   return dates;
 }
 
-/** ¿La descripción de un egreso corresponde a este pago? */
+/** ¿La descripción de un movimiento corresponde a este pago (o ingreso programado)? Debe ser del mismo tipo. */
 export function matchesPayment(rec: RecurringPayment, movement: Movement): boolean {
-  if (movement.type !== 'egreso') return false;
+  if (movement.type !== rec.type) return false;
   const text = normalizeText(movement.description);
   return !!text && (text.includes(rec.match) || text.includes(normalizeText(rec.name)));
 }
@@ -186,7 +190,7 @@ export function recurringTotals(
   const perMonth = (r: RecurringPayment) => {
     if (r.kind === 'unico') return 0;
     if (r.kind === 'plazos') return dueDateIn(r, monthKey(today)) ? r.amount : 0;
-    return r.frequency === 'mensual' ? amountFor(r, today) : r.amount / 12;
+    return r.frequency === 'mensual' ? amountFor(r, today) * (r.secondDay ? 2 : 1) : r.amount / 12;
   };
   const subscriptions = list.filter((r) => r.subscription);
   const pendingThisMonth = list
@@ -209,7 +213,7 @@ export const COVERAGE_TIGHT_RATIO = 0.1;
 export type CoverageLevel = 'cubierto' | 'justo' | 'riesgo';
 
 export interface MonthCoverage {
-  /** Todo lo que vence este mes */
+  /** Todos los pagos que vencen este mes */
   total: number;
   paid: number;
   pending: number;
@@ -219,12 +223,17 @@ export interface MonthCoverage {
   free: number | null;
   /** Lo que quedaría libre después de cubrir lo pendiente (negativo = faltante) */
   after: number | null;
+  /** Ingresos programados de este mes que aún no llegan */
+  incoming: number;
+  /** `after` contando también lo que falta por cobrar */
+  afterWithIncome: number | null;
   level: CoverageLevel | null;
 }
 
 /**
  * Pagos comprometidos en el mes de `today` contra el saldo libre: si alcanza, si queda justo
- * (menos del 10 % del saldo libre después de pagar) o si no alcanza. No cuenta ingresos futuros.
+ * (menos del 10 % del saldo libre después de pagar) o si no alcanza. Si con lo de hoy no alcanza pero
+ * sí con los ingresos programados que faltan por cobrar, queda "justo": depende de que lleguen a tiempo.
  */
 export function monthCoverage(
   list: readonly RecurringPayment[],
@@ -233,14 +242,32 @@ export function monthCoverage(
   today = todayIso(),
 ): MonthCoverage {
   const { from, to } = monthRange(monthKey(today));
-  const occurrences = list.flatMap((r) => dueDatesBetween(r, from, to).map((d) => occurrence(r, d, movements, today)));
+  const inMonth = (type: 'ingreso' | 'egreso') =>
+    list.filter((r) => r.type === type).flatMap((r) => dueDatesBetween(r, from, to).map((d) => occurrence(r, d, movements, today)));
+  const occurrences = inMonth('egreso');
   const pendingList = occurrences.filter((o) => o.status !== 'pagado');
+  const incoming = round2(inMonth('ingreso').filter((o) => o.status !== 'pagado').reduce((sum, o) => sum + o.amount, 0));
   const total = round2(occurrences.reduce((sum, o) => sum + o.amount, 0));
   const pending = round2(pendingList.reduce((sum, o) => sum + o.amount, 0));
   const after = free === null ? null : round2(free - pending);
-  const level: CoverageLevel | null =
-    after === null ? null : after < 0 ? 'riesgo' : pending > 0 && after < free! * COVERAGE_TIGHT_RATIO ? 'justo' : 'cubierto';
-  return { total, paid: round2(total - pending), pending, count: occurrences.length, pendingCount: pendingList.length, free, after, level };
+  const afterWithIncome = after === null ? null : round2(after + incoming);
+  let level: CoverageLevel | null = null;
+  if (after !== null) {
+    if (after < 0) level = afterWithIncome! >= 0 ? 'justo' : 'riesgo';
+    else level = pending > 0 && after < free! * COVERAGE_TIGHT_RATIO ? 'justo' : 'cubierto';
+  }
+  return {
+    total,
+    paid: round2(total - pending),
+    pending,
+    count: occurrences.length,
+    pendingCount: pendingList.length,
+    free,
+    after,
+    incoming,
+    afterWithIncome,
+    level,
+  };
 }
 
 // ---------- Cambios de precio ----------

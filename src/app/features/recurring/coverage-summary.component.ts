@@ -50,8 +50,15 @@ const LEVEL_LABEL: Record<CoverageLevel, string> = { cubierto: 'Cubierto', justo
                 <strong [class.text-expense]="c.free < 0">{{ c.free | currencyFormat }}</strong>
                 <span class="ayuda">Saldo − apartado para metas</span>
               </div>
+              @if (c.incoming > 0) {
+                <div>
+                  <span class="etiqueta">Por cobrar</span>
+                  <strong class="text-income">+{{ c.incoming | currencyFormat }}</strong>
+                  <span class="ayuda">Ingresos programados</span>
+                </div>
+              }
               <div>
-                <span class="etiqueta">{{ c.after < 0 ? 'Te faltan' : 'Te quedarían' }}</span>
+                <span class="etiqueta">{{ c.after < 0 ? 'Te faltan hoy' : 'Te quedarían' }}</span>
                 <strong [class.text-expense]="c.after < 0">{{ (c.after < 0 ? -c.after : c.after) | currencyFormat }}</strong>
                 <span class="ayuda">Después de pagar</span>
               </div>
@@ -60,7 +67,7 @@ const LEVEL_LABEL: Record<CoverageLevel, string> = { cubierto: 'Cubierto', justo
 
           @if (c.free !== null) {
             <div class="barra" role="img" [attr.aria-label]="'Lo que falta pagar equivale al ' + usedPercent() + ' % de tu saldo libre'">
-              <span [style.width.%]="usedPercent()"></span>
+              <span class="barra-crece" [style.width.%]="usedPercent()"></span>
             </div>
           }
 
@@ -68,11 +75,21 @@ const LEVEL_LABEL: Record<CoverageLevel, string> = { cubierto: 'Cubierto', justo
             @switch (c.level) {
               @case ('riesgo') {
                 <svg lucideIcon="triangle-alert" [size]="15" aria-hidden="true"></svg>
-                Tu saldo libre no alcanza para lo que falta pagar este mes. Espera un ingreso, usa lo apartado o mueve algún pago.
+                @if (c.incoming > 0) {
+                  Ni con lo que te falta cobrar alcanzas a cubrir tus pagos del mes: te faltarían {{ -c.afterWithIncome! | currencyFormat }}.
+                  Usa lo apartado o mueve algún pago.
+                } @else {
+                  Tu saldo libre no alcanza para lo que falta pagar este mes. Espera un ingreso, usa lo apartado o mueve algún pago.
+                }
               }
               @case ('justo') {
                 <svg lucideIcon="triangle-alert" [size]="15" aria-hidden="true"></svg>
-                Alcanza, pero te quedaría poco margen para el resto del mes.
+                @if (c.after! < 0) {
+                  Con lo que tienes hoy no alcanza, pero sí con lo que te falta cobrar
+                  ({{ c.afterWithIncome! | currencyFormat }} de margen). Cuida que tus ingresos lleguen antes de cada pago.
+                } @else {
+                  Alcanza, pero te quedaría poco margen para el resto del mes.
+                }
               }
               @case ('cubierto') {
                 <svg lucideIcon="circle-check" [size]="15" aria-hidden="true"></svg>
@@ -84,7 +101,14 @@ const LEVEL_LABEL: Record<CoverageLevel, string> = { cubierto: 'Cubierto', justo
               }
             }
           </p>
-          <p class="nota">No incluye ingresos que aún no te llegan este mes. <a routerLink="/pagos">Ver pagos</a></p>
+          <p class="nota">
+            @if (c.incoming > 0) {
+              Considera tus ingresos programados que faltan por cobrar; otros ingresos no.
+            } @else {
+              No incluye ingresos que aún no te llegan. <a routerLink="/pagos" [queryParams]="{ tipo: 'ingresos' }">Programa tu salario</a> para contarlo.
+            }
+            <a routerLink="/pagos">Ver pagos</a>
+          </p>
         }
       </section>
     }

@@ -31,7 +31,7 @@ import { InboxService } from '../../../core/services/inbox.service';
             [routerLinkActiveOptions]="{ exact: item.exact }"
             ariaCurrentWhenActive="page"
           >
-            <svg [lucideIcon]="item.icon" [size]="16" aria-hidden="true"></svg>
+            <span class="icono-color nav-icono" [style.--c]="item.color"><svg [lucideIcon]="item.icon" [size]="15" aria-hidden="true"></svg></span>
             <span>{{ item.label }}</span>
             @if (item.pendingBadge && pending() > 0) {
               <span class="badge pc-num" [attr.aria-label]="pending() + ' cargos por confirmar'">{{ pending() }}</span>
@@ -63,7 +63,7 @@ import { InboxService } from '../../../core/services/inbox.service';
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 8px 10px;
+      padding: 6px 10px 6px 6px;
       border-radius: var(--radius-md);
       font-size: 14px;
       font-weight: 500;
@@ -75,9 +75,11 @@ import { InboxService } from '../../../core/services/inbox.service';
       background: color-mix(in oklab, var(--sidebar-accent) 50%, transparent);
       color: var(--foreground);
     }
+    .nav-icono { width: 28px; height: 28px; border-radius: 8px; }
+    .nav-item:hover .nav-icono { transform: scale(1.06); }
     .nav-item.is-activo { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
-    .nav-item.is-activo svg { color: var(--primary); }
-    :host-context(.dark) .nav-item.is-activo svg { color: var(--texto-activo); }
+    /* En la sección activa el ícono se rellena con su color */
+    .nav-item.is-activo .nav-icono { color: #fff; background: var(--c); box-shadow: 0 4px 10px -4px var(--c); }
     .badge {
       margin-left: auto;
       min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center;

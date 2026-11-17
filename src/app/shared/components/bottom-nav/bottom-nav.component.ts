@@ -36,6 +36,7 @@ import { InboxService } from '../../../core/services/inbox.service';
           routerLinkActive="is-activo"
           [routerLinkActiveOptions]="{ exact: tab.exact }"
           ariaCurrentWhenActive="page"
+          [style.--c]="tab.color"
         >
           <svg [lucideIcon]="tab.icon" [size]="20" aria-hidden="true"></svg>
           <span class="label">{{ tab.tabLabel ?? tab.label }}</span>
@@ -80,7 +81,7 @@ import { InboxService } from '../../../core/services/inbox.service';
                   ariaCurrentWhenActive="page"
                   (click)="open.set(false)"
                 >
-                  <svg [lucideIcon]="item.icon" [size]="18" aria-hidden="true"></svg>
+                  <span class="icono-color" [style.--c]="item.color"><svg [lucideIcon]="item.icon" [size]="17" aria-hidden="true"></svg></span>
                   <span>{{ item.label }}</span>
                   <svg class="fila__flecha" lucideIcon="chevron-right" [size]="16" aria-hidden="true"></svg>
                 </a>
@@ -141,6 +142,10 @@ import { InboxService } from '../../../core/services/inbox.service';
       background: var(--degradado-item-activo);
       box-shadow: var(--sombra-item-activo);
     }
+    /* La sección activa toma su color y el ícono da un pequeño rebote */
+    .tab.is-activo:not(.tab--accion) svg { color: var(--c, currentColor); animation: rebote 360ms var(--ease-resorte); }
+    @keyframes rebote { 40% { transform: translateY(-3px) scale(1.12); } }
+    @media (prefers-reduced-motion: reduce) { .tab.is-activo svg { animation: none; } }
     .tab:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
     .label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

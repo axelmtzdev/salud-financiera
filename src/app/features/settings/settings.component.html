@@ -19,7 +19,12 @@
         </div>
         <div class="row-end">
           <button type="submit" class="pc-boton boton-primario-elevado" [disabled]="busy() === 'profile'">
-            <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> Guardar nombre
+            @if (busy() === 'profile') {
+              <span class="spinner" aria-hidden="true"></span>
+            } @else {
+              <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg>
+            }
+            Guardar nombre
           </button>
         </div>
       </form>
@@ -53,7 +58,12 @@
         <p class="muted small">Se cerrará la sesión en tus otros dispositivos.</p>
         <div class="row-end">
           <button type="submit" class="pc-boton boton-elevado" [disabled]="busy() === 'password'">
-            <svg lucideIcon="lock" [size]="14" aria-hidden="true"></svg> Cambiar contraseña
+            @if (busy() === 'password') {
+              <span class="spinner" aria-hidden="true"></span>
+            } @else {
+              <svg lucideIcon="lock" [size]="14" aria-hidden="true"></svg>
+            }
+            Cambiar contraseña
           </button>
         </div>
       </form>
@@ -119,7 +129,12 @@
           </div>
           <div class="legacy__actions">
             <button type="button" class="pc-boton boton-primario-elevado" (click)="importLegacy()" [disabled]="busy() === 'legacy'">
-              <svg lucideIcon="upload" [size]="14" aria-hidden="true"></svg> Subir a mi cuenta
+              @if (busy() === 'legacy') {
+                <span class="spinner" aria-hidden="true"></span>
+              } @else {
+                <svg lucideIcon="upload" [size]="14" aria-hidden="true"></svg>
+              }
+              Subir a mi cuenta
             </button>
             <button type="button" class="pc-boton pc-btn--ghost" (click)="discardLegacy()">Descartar</button>
           </div>
@@ -159,7 +174,12 @@
             <span class="field-error" role="alert">{{ message }}</span>
           }
         </div>
-        <button type="submit" class="pc-boton pc-btn--destructive" [disabled]="busy() === 'delete'">Eliminar cuenta</button>
+        <button type="submit" class="pc-boton pc-btn--destructive" [disabled]="busy() === 'delete'">
+          @if (busy() === 'delete') {
+            <span class="spinner" aria-hidden="true"></span>
+          }
+          Eliminar cuenta
+        </button>
       </form>
     </app-card>
   </div>

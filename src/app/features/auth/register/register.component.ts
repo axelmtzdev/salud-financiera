@@ -68,7 +68,12 @@ export const PASSWORD_MIN_LENGTH = 8;
         }
 
         <button type="submit" class="pc-boton pc-boton--grande pc-boton--bloque boton-primario-elevado" [disabled]="sending()">
-          <svg lucideIcon="lock" [size]="16" aria-hidden="true"></svg> {{ sending() ? 'Creando cuenta…' : 'Crear cuenta' }}
+          @if (sending()) {
+            <span class="spinner" aria-hidden="true"></span>
+          } @else {
+            <svg lucideIcon="lock" [size]="16" aria-hidden="true"></svg>
+          }
+          {{ sending() ? 'Creando cuenta…' : 'Crear cuenta' }}
         </button>
         @if (sending() && api.waking()) {
           <p class="waking" role="status">El servidor está despertando; la primera vez puede tardar hasta un minuto.</p>

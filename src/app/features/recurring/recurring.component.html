@@ -1,64 +1,100 @@
 <div class="page">
   <header class="page-header">
     <div>
-      <span class="eyebrow">Pagos</span>
-      <h1 class="page-title">Lo que tienes que pagar</h1>
-      <p class="page-subtitle">Suscripciones, créditos a plazos, tarjetas y pagos únicos: qué viene, qué ya pagaste y cuánto te comprometen.</p>
+      <span class="eyebrow">Pagos e ingresos</span>
+      <h1 class="page-title">{{ isIncome() ? 'Lo que vas a cobrar' : 'Lo que tienes que pagar' }}</h1>
+      <p class="page-subtitle">
+        @if (isIncome()) {
+          Tu salario, quincenas y otros ingresos que llegan en fechas fijas: qué viene y qué ya cobraste.
+        } @else {
+          Suscripciones, créditos a plazos, tarjetas y pagos únicos: qué viene, qué ya pagaste y cuánto te comprometen.
+        }
+      </p>
     </div>
-    @if (recurring.hasAny()) {
+    @if (view().has) {
       <div class="page-actions">
         <button type="button" class="pc-boton boton-elevado" (click)="openNew()">
-          <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar pago
+          <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> {{ addLabel() }}
         </button>
       </div>
     }
   </header>
 
-  @if (!recurring.hasAny()) {
+  <div class="segmented pestanas" role="tablist" aria-label="Pagos o ingresos">
+    <button type="button" role="tab" [class.active]="!isIncome()" [attr.aria-selected]="!isIncome()" (click)="setTab('egreso')">
+      <svg lucideIcon="trending-down" [size]="14" aria-hidden="true"></svg> Pagos
+      @if (recurring.payments().length) {
+        <span class="pestanas__n pc-num">{{ recurring.payments().length }}</span>
+      }
+    </button>
+    <button type="button" role="tab" [class.active]="isIncome()" [attr.aria-selected]="isIncome()" (click)="setTab('ingreso')">
+      <svg lucideIcon="trending-up" [size]="14" aria-hidden="true"></svg> Ingresos
+      @if (recurring.incomes().length) {
+        <span class="pestanas__n pc-num">{{ recurring.incomes().length }}</span>
+      }
+    </button>
+  </div>
+
+  @if (!view().has) {
     <app-card>
       <div class="empty-state intro">
-        <span class="empty-state__icon"><svg lucideIcon="repeat" [size]="20" [strokeWidth]="1.75" aria-hidden="true"></svg></span>
-        <h3>Aún no tienes pagos registrados</h3>
-        <p>
-          Registra la renta, tus suscripciones, créditos a plazos y el pago de tus tarjetas para saber qué viene, avisarte si
-          algo cambia de precio y ver cuánto se va al mes. También gastos de una sola vez, como unas vacaciones.
-        </p>
+        <span class="empty-state__icon"><svg [lucideIcon]="isIncome() ? 'trending-up' : 'repeat'" [size]="20" [strokeWidth]="1.75" aria-hidden="true"></svg></span>
+        @if (isIncome()) {
+          <h3>Aún no tienes ingresos programados</h3>
+          <p>
+            Registra tu salario o tus quincenas (por ejemplo, $16,000 los días 15 y 30) para verlos en tus próximos 30 días,
+            marcarlos como recibidos y que la proyección y el indicador del mes cuenten con ellos.
+          </p>
+        } @else {
+          <h3>Aún no tienes pagos registrados</h3>
+          <p>
+            Registra la renta, tus suscripciones, créditos a plazos y el pago de tus tarjetas para saber qué viene, avisarte si
+            algo cambia de precio y ver cuánto se va al mes. También gastos de una sola vez, como unas vacaciones.
+          </p>
+        }
         <div class="empty-state__actions">
-          <button type="button" class="pc-boton boton-elevado" (click)="openNew()">
-            <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> Agregar pago
+          <button type="button" class="pc-boton boton-primario-elevado" (click)="openNew()">
+            <svg lucideIcon="plus" [size]="14" aria-hidden="true"></svg> {{ addLabel() }}
           </button>
         </div>
       </div>
     </app-card>
   } @else {
-    @let t = recurring.totals();
-    <section class="stats-grid" aria-label="Resumen de pagos recurrentes">
-      <app-stat-tile label="Comprometido al mes" [value]="fmt(t.monthly)" tone="expense" [hint]="recurring.list().length + (recurring.list().length === 1 ? ' pago' : ' pagos')" />
-      <app-stat-tile label="Suscripciones" [value]="fmt(t.subscriptionsMonthly)" [hint]="t.subscriptionsCount + (t.subscriptionsCount === 1 ? ' suscripción' : ' suscripciones') + ' · por mes'" />
-      <app-stat-tile label="Falta pagar este mes" [value]="fmt(t.pendingThisMonth)" />
-      @if (next(); as n) {
-        <app-stat-tile [label]="'Próximo: ' + n.payment.name" [value]="fmt(n.amount)" [hint]="(n.due | dateFormat: 'short') + ' · ' + whenLabel(n)" />
+    @let t = view().totals;
+    <section class="stats-grid" [attr.aria-label]="isIncome() ? 'Resumen de ingresos programados' : 'Resumen de pagos'">
+      @if (isIncome()) {
+        <app-stat-tile label="Esperado al mes" [value]="fmt(t.monthly)" tone="income" icon="trending-up" [hint]="countLabel(view().rows.length)" />
+        <app-stat-tile label="Por cobrar este mes" [value]="fmt(t.pendingThisMonth)" icon="calendar-clock" />
       } @else {
-        <app-stat-tile label="Próximo pago" value="—" hint="Nada en los próximos 30 días" />
+        <app-stat-tile label="Comprometido al mes" [value]="fmt(t.monthly)" tone="expense" icon="trending-down" [hint]="countLabel(view().rows.length)" />
+        <app-stat-tile label="Suscripciones" [value]="fmt(t.subscriptionsMonthly)" icon="repeat" [hint]="t.subscriptionsCount + (t.subscriptionsCount === 1 ? ' suscripción' : ' suscripciones') + ' · por mes'" />
+        <app-stat-tile label="Falta pagar este mes" [value]="fmt(t.pendingThisMonth)" icon="calendar-clock" />
+      }
+      @if (next(); as n) {
+        <app-stat-tile [label]="'Próximo: ' + n.payment.name" [value]="fmt(n.amount)" icon="arrow-right" [hint]="(n.due | dateFormat: 'short') + ' · ' + whenLabel(n)" />
+      } @else {
+        <app-stat-tile [label]="isIncome() ? 'Próximo ingreso' : 'Próximo pago'" value="—" icon="arrow-right" hint="Nada en los próximos 30 días" />
       }
     </section>
 
-    @for (change of recurring.priceChanges(); track change.payment.id) {
-      <div class="banda banda--aviso mov-entrar">
-        <span class="banda__icono"><svg lucideIcon="trending-up" [size]="15" aria-hidden="true"></svg></span>
-        <p>
-          <strong>{{ change.payment.name }} {{ change.to > change.from ? 'subió' : 'bajó' }} de precio:</strong>
-          el {{ change.date | dateFormat: 'short' }} se cobraron {{ change.to | currencyFormat }} y tenías registrado {{ change.from | currencyFormat }}.
-        </p>
-        <button type="button" class="pc-boton boton-elevado" (click)="applyPrice(change)">Actualizar a {{ change.to | currencyFormat }}</button>
-      </div>
+    @if (!isIncome()) {
+      @for (change of recurring.priceChanges(); track change.payment.id) {
+        <div class="banda banda--aviso mov-entrar">
+          <span class="banda__icono"><svg lucideIcon="trending-up" [size]="15" aria-hidden="true"></svg></span>
+          <p>
+            <strong>{{ change.payment.name }} {{ change.to > change.from ? 'subió' : 'bajó' }} de precio:</strong>
+            el {{ change.date | dateFormat: 'short' }} se cobraron {{ change.to | currencyFormat }} y tenías registrado {{ change.from | currencyFormat }}.
+          </p>
+          <button type="button" class="pc-boton boton-elevado" (click)="applyPrice(change)">Actualizar a {{ change.to | currencyFormat }}</button>
+        </div>
+      }
     }
 
-    <app-card title="Próximos 30 días" subtitle="Lo que vence pronto y lo que se quedó sin pagar" [flush]="true">
-      @if (recurring.upcoming().length) {
+    <app-card title="Próximos 30 días" [subtitle]="isIncome() ? 'Lo que llega pronto y lo que no ha llegado' : 'Lo que vence pronto y lo que se quedó sin pagar'" [flush]="true">
+      @if (view().upcoming.length) {
         <ul class="lista">
-          @for (o of recurring.upcoming(); track o.payment.id + o.due) {
-            <li class="pago" [class.pago--vencido]="o.status === 'vencido'">
+          @for (o of view().upcoming; track o.payment.id + o.due; let i = $index) {
+            <li class="pago mov-entrar" [class.pago--vencido]="o.status === 'vencido'" [class.pago--ingreso]="isIncome()" [style.animation-delay.ms]="i < 10 ? i * 30 : 0">
               <span class="fecha pc-num" aria-hidden="true">
                 <strong>{{ o.due.slice(8) }}</strong>
                 <span>{{ monthShort(o.due) }}</span>
@@ -66,7 +102,7 @@
               <span class="pago__datos">
                 <span class="pago__nombre">{{ o.payment.name }}</span>
                 <span class="pago__detalle">
-                  <span class="punto" [style.background]="finance.colorOf('egreso', o.payment.category)"></span>{{ o.payment.category }}
+                  <span class="punto" [style.background]="finance.colorOf(o.payment.type, o.payment.category)"></span>{{ o.payment.category }}
                   @if (o.payment.kind === 'variable') {
                     · <button type="button" class="link-btn" (click)="startAdjust(o)">Ajustar monto</button>
                   }
@@ -91,7 +127,7 @@
                   </button>
                 </span>
               } @else {
-                <span class="pago__monto amount pc-num">{{ o.amount | currencyFormat }}</span>
+                <span class="pago__monto amount pc-num" [class.text-income]="isIncome()">{{ isIncome() ? '+' : '' }}{{ o.amount | currencyFormat }}</span>
               }
               <span class="pago__estado">
                 <span class="pill" [class.pill--egreso]="o.status === 'vencido'" [class.pill--muted]="o.status !== 'vencido'">
@@ -99,19 +135,19 @@
                 </span>
               </span>
               <button type="button" class="pc-boton boton-elevado pago__accion" (click)="markPaid(o)">
-                <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> Marcar pagado
+                <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg> {{ isIncome() ? 'Marcar recibido' : 'Marcar pagado' }}
               </button>
             </li>
           }
         </ul>
       } @else {
-        <p class="vacio">No hay pagos pendientes en los próximos 30 días.</p>
+        <p class="vacio">{{ isIncome() ? 'No hay ingresos por llegar en los próximos 30 días.' : 'No hay pagos pendientes en los próximos 30 días.' }}</p>
       }
     </app-card>
 
-    <app-card title="Todos tus pagos" subtitle="Ordenados por día de vencimiento" [flush]="true">
+    <app-card [title]="isIncome() ? 'Todos tus ingresos programados' : 'Todos tus pagos'" subtitle="Ordenados por día" [flush]="true">
       <ul class="lista">
-        @for (row of recurring.rows(); track row.payment.id) {
+        @for (row of view().rows; track row.payment.id) {
           <li class="pago pago--registro">
             <span class="pago__datos">
               <span class="pago__nombre">
@@ -121,17 +157,17 @@
                 }
               </span>
               <span class="pago__detalle">
-                <span class="punto" [style.background]="finance.colorOf('egreso', row.payment.category)"></span>
+                <span class="punto" [style.background]="finance.colorOf(row.payment.type, row.payment.category)"></span>
                 {{ row.payment.category }} · {{ schedule(row.payment) }}
               </span>
               @if (row.progress; as p) {
                 <span class="plazos">
-                  <span class="plazos__barra" aria-hidden="true"><span [style.width.%]="(p.paid / p.total) * 100"></span></span>
+                  <span class="plazos__barra" aria-hidden="true"><span class="barra-crece" [style.width.%]="(p.paid / p.total) * 100"></span></span>
                   <span class="plazos__texto pc-num">{{ progressText(p) }}</span>
                 </span>
               }
             </span>
-            <span class="pago__monto amount pc-num">
+            <span class="pago__monto amount pc-num" [class.text-income]="isIncome()">
               {{ rowAmount(row) | currencyFormat }}<span class="periodo">{{ period(row.payment) }}</span>
             </span>
             <span class="pago__estado">
@@ -143,7 +179,7 @@
                   [class.pill--ingreso]="o.status === 'pagado'"
                   [class.pill--egreso]="o.status === 'vencido'"
                   [class.pill--muted]="o.status === 'pendiente'"
-                  [title]="'Vencimiento: ' + (o.due | dateFormat: 'short')"
+                  [title]="'Fecha: ' + (o.due | dateFormat: 'short')"
                 >
                   <span class="punto"></span>{{ whenLabel(o) }}
                 </span>
@@ -163,7 +199,7 @@
     </app-card>
   }
 
-  @if (recurring.detected().length) {
+  @if (!isIncome() && recurring.detected().length) {
     <app-card title="Detectados en tus movimientos" subtitle="Egresos que se repiten cada mes con un monto parecido" [flush]="true">
       @if (recurring.detected().length > 1) {
         <button card-actions type="button" class="pc-boton pc-btn--ghost" (click)="addAllDetected()">
@@ -198,7 +234,7 @@
     </app-card>
   }
 
-  @if (recurring.ignoredCount() > 0) {
+  @if (!isIncome() && recurring.ignoredCount() > 0) {
     <p class="ignorados">
       Descartaste {{ recurring.ignoredCount() }} {{ recurring.ignoredCount() === 1 ? 'sugerencia' : 'sugerencias' }}.
       <button type="button" class="link-btn" (click)="restoreIgnored()">Volver a mostrarlas</button>
@@ -206,11 +242,16 @@
   }
 
   @if (formOpen()) {
-    <app-card id="pago-form" [title]="editingId() ? 'Editar pago' : 'Nuevo pago'" subtitle="Se marca como pagado solo cuando registras el egreso" class="mov-entrar">
+    <app-card
+      id="pago-form"
+      [title]="editingId() ? (isIncome() ? 'Editar ingreso' : 'Editar pago') : isIncome() ? 'Nuevo ingreso programado' : 'Nuevo pago'"
+      [subtitle]="isIncome() ? 'Se marca como recibido cuando registras el ingreso' : 'Se marca como pagado solo cuando registras el egreso'"
+      class="mov-entrar"
+    >
       <div class="field tipo">
-        <span class="field-label" id="r-kind">Tipo de pago</span>
+        <span class="field-label" id="r-kind">{{ isIncome() ? 'Tipo de ingreso' : 'Tipo de pago' }}</span>
         <div class="segmented" role="radiogroup" aria-labelledby="r-kind">
-          @for (k of kinds; track k.value) {
+          @for (k of kindOptions(); track k.value) {
             <button type="button" role="radio" [class.active]="kind() === k.value" [attr.aria-checked]="kind() === k.value" (click)="kind.set(k.value); formError.set(null)">
               {{ k.label }}
             </button>
@@ -221,23 +262,25 @@
       <div class="form-grid form-grid--2">
         <div class="field">
           <label class="field-label" for="r-name">Nombre</label>
-          <input id="r-name" class="input" maxlength="60" placeholder="Ej. Netflix, Renta, Luz" [value]="name()" (input)="name.set($any($event.target).value); formError.set(null)" />
+          <input id="r-name" class="input" maxlength="60" [placeholder]="isIncome() ? 'Ej. Nómina, Honorarios' : 'Ej. Netflix, Renta, Luz'" [value]="name()" (input)="name.set($any($event.target).value); formError.set(null)" />
         </div>
         <div class="field">
-          <label class="field-label" for="r-amount">{{ kind() === 'plazos' ? 'Monto de cada pago' : kind() === 'variable' ? 'Monto estimado' : 'Monto' }}</label>
+          <label class="field-label" for="r-amount">{{ amountLabel() }}</label>
           <div class="input-group">
             <span class="input-prefix">$</span>
             <input id="r-amount" class="input pc-num" inputmode="decimal" placeholder="0.00" [value]="amount()" (input)="amount.set($any($event.target).value); formError.set(null)" />
           </div>
           @if (kind() === 'variable') {
             <span class="field-hint">Se usa mientras no captures el monto real de cada mes ("Ajustar monto").</span>
+          } @else if (allowsSecondDay() && secondDay()) {
+            <span class="field-hint">Monto de cada fecha (cada quincena, por ejemplo).</span>
           }
         </div>
         <div class="field">
           <label class="field-label" for="r-category">Categoría</label>
           <select id="r-category" class="input" [value]="category()" (change)="category.set($any($event.target).value); formError.set(null)">
             <option value="">Elige categoría…</option>
-            @for (c of finance.categories().egreso; track c) {
+            @for (c of finance.categories()[tab()]; track c) {
               <option [value]="c" [selected]="c === category()">{{ c }}</option>
             }
           </select>
@@ -273,15 +316,27 @@
         }
         @if (kind() !== 'unico') {
           <div class="field">
-            <label class="field-label" for="r-day">Día de vencimiento</label>
+            <label class="field-label" for="r-day">{{ isIncome() ? 'Día en que llega' : 'Día de vencimiento' }}</label>
             <select id="r-day" class="input" [value]="day()" (change)="day.set(+$any($event.target).value)">
               @for (d of days; track d) {
                 <option [value]="d" [selected]="d === day()">{{ d }}</option>
               }
             </select>
             @if (day() > 28) {
-              <span class="field-hint">En meses más cortos vence el último día.</span>
+              <span class="field-hint">En meses más cortos es el último día.</span>
             }
+          </div>
+        }
+        @if (allowsSecondDay()) {
+          <div class="field">
+            <label class="field-label" for="r-second">Otro día del mes <span class="optional">(opcional)</span></label>
+            <select id="r-second" class="input" [value]="secondDay()" (change)="secondDay.set(+$any($event.target).value); formError.set(null)">
+              <option [value]="0" [selected]="!secondDay()">Ninguno</option>
+              @for (d of days; track d) {
+                <option [value]="d" [selected]="d === secondDay()">{{ d }}</option>
+              }
+            </select>
+            <span class="field-hint">{{ isIncome() ? 'Para quincenas: 15 y 30.' : 'Si se paga dos veces al mes.' }}</span>
           </div>
         }
         @if (kind() === 'fijo' && frequency() === 'anual') {
@@ -296,13 +351,17 @@
         }
         <div class="field span-2">
           <label class="field-label" for="r-match">Texto para reconocerlo <span class="optional">(opcional)</span></label>
-          <input id="r-match" class="input" maxlength="60" placeholder="Ej. netflix" [value]="match()" (input)="match.set($any($event.target).value)" />
+          <input id="r-match" class="input" maxlength="60" [placeholder]="isIncome() ? 'Ej. nomina' : 'Ej. netflix'" [value]="match()" (input)="match.set($any($event.target).value)" />
           <span class="field-hint">
-            Si la descripción de un egreso contiene este texto, el pago se marca como hecho. Si lo dejas vacío se usa el nombre.
-            Los cargos del iPhone llegan con el nombre del comercio (por ejemplo "NETFLIX.COM").
+            @if (isIncome()) {
+              Si la descripción de un ingreso contiene este texto, se marca como recibido. Si lo dejas vacío se usa el nombre.
+            } @else {
+              Si la descripción de un egreso contiene este texto, el pago se marca como hecho. Si lo dejas vacío se usa el nombre.
+              Los cargos del iPhone llegan con el nombre del comercio (por ejemplo "NETFLIX.COM").
+            }
           </span>
         </div>
-        @if (kind() === 'fijo') {
+        @if (kind() === 'fijo' && !isIncome()) {
           <label class="check span-2">
             <input type="checkbox" [checked]="subscription()" (change)="subscription.set($any($event.target).checked)" />
             Es una suscripción (streaming, apps, gimnasio…)
@@ -316,7 +375,7 @@
         <button type="button" class="pc-boton pc-btn--ghost" (click)="cancelForm()">Cancelar</button>
         <button type="button" class="pc-boton boton-primario-elevado" (click)="submit()">
           <svg lucideIcon="check" [size]="14" [strokeWidth]="2.5" aria-hidden="true"></svg>
-          {{ editingId() ? 'Guardar cambios' : 'Agregar pago' }}
+          {{ editingId() ? 'Guardar cambios' : addLabel() }}
         </button>
       </div>
     </app-card>

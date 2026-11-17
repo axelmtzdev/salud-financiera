@@ -67,7 +67,7 @@ type QuickAddState =
           <p class="lead">{{ invalidError() }} Revisa la URL que arma tu atajo; en Ajustes está la plantilla.</p>
         }
         @case ('saving') {
-          <h1>Guardando cargo…</h1>
+          <h1><span class="spinner" aria-hidden="true"></span> Guardando cargo…</h1>
           <p class="lead">{{ api.waking() ? 'El servidor está despertando; puede tardar hasta un minuto.' : 'Un momento.' }}</p>
         }
         @case ('login') {

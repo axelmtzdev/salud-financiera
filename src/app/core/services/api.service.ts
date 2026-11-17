@@ -22,6 +22,10 @@ export class ApiService {
   private readonly token = signal<string | null>(readToken());
   readonly hasToken = computed(() => this.token() !== null);
 
+  private readonly inFlight = signal(0);
+  /** Hay peticiones en curso (para la barra de carga). */
+  readonly busy = computed(() => this.inFlight() > 0);
+
   private readonly slowRequests = signal(0);
   /** Hay una petición tardando: probablemente el servidor estaba dormido. */
   readonly waking = computed(() => this.slowRequests() > 0);
@@ -62,6 +66,15 @@ export class ApiService {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
 
+    this.inFlight.update((n) => n + 1);
+    try {
+      return await this.send<T>(method, path, body, token, headers);
+    } finally {
+      this.inFlight.update((n) => n - 1);
+    }
+  }
+
+  private async send<T>(method: string, path: string, body: unknown, token: string | null, headers: Record<string, string>): Promise<T> {
     let slow = false;
     const timer = setTimeout(() => {
       slow = true;

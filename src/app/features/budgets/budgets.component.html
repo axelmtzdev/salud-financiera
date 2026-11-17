@@ -39,16 +39,19 @@
   } @else {
     @let o = overview();
     <section class="stats-grid" aria-label="Resumen del presupuesto">
-      <app-stat-tile label="Presupuesto del mes" [value]="fmt(o.totalLimit)" [hint]="o.lines.length + (o.lines.length === 1 ? ' categoría' : ' categorías')" />
-      <app-stat-tile label="Gastado" [value]="fmt(o.totalSpent)" tone="expense" [hint]="percent(o.totalLimit ? o.totalSpent / o.totalLimit : 0) + ' del presupuesto'" />
+      <app-stat-tile label="Presupuesto del mes" [amount]="o.totalLimit" icon="target" [hint]="o.lines.length + (o.lines.length === 1 ? ' categoría' : ' categorías')" />
+      <app-stat-tile label="Gastado" [amount]="o.totalSpent" tone="expense" icon="trending-down" [hint]="percent(o.totalLimit ? o.totalSpent / o.totalLimit : 0) + ' del presupuesto'" />
       <app-stat-tile
         [label]="o.totalRemaining < 0 ? 'Excedido' : 'Disponible'"
         [value]="fmt(o.totalRemaining < 0 ? -o.totalRemaining : o.totalRemaining)"
         [negative]="o.totalRemaining < 0"
+        [tone]="o.totalRemaining < 0 ? 'expense' : 'income'"
+        icon="wallet"
         [hint]="paceHint()"
       />
       <app-stat-tile
         label="Fuera de presupuesto"
+        icon="tag"
         [value]="fmt(o.unbudgetedTotal)"
         [hint]="o.unbudgeted.length ? o.unbudgeted.length + (o.unbudgeted.length === 1 ? ' categoría sin tope' : ' categorías sin tope') : 'Todo tu gasto tiene tope'"
       />

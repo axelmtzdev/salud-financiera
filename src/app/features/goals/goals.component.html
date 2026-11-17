@@ -98,9 +98,9 @@
   }
 
   @if (goals.active().length) {
-    <section class="metas" aria-label="Metas activas">
+    <section class="metas cascada" aria-label="Metas activas">
       @for (p of goals.active(); track p.goal.id) {
-        <article class="meta tarjeta-elevada" [class.meta--lograda]="p.status === 'alcanzada'">
+        <article class="meta tarjeta-elevada tarjeta-levitar" [class.meta--lograda]="p.status === 'alcanzada'">
           <header class="meta__cabeza">
             <div class="meta__titulo">
               <h2>{{ p.goal.name }}</h2>
@@ -119,7 +119,7 @@
           </header>
 
           <div class="meta__montos pc-num">
-            <strong>{{ p.saved | currencyFormat }}</strong>
+            <strong [appCountUp]="p.saved"></strong>
             <span>de {{ p.goal.target | currencyFormat }}</span>
           </div>
           <div

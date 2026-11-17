@@ -43,10 +43,10 @@ import { CoverageSummaryComponent } from '../recurring/coverage-summary.componen
       <app-coverage-summary />
 
       <section class="stats-grid" aria-label="Resumen del mes">
-        <app-stat-tile label="Ingresos del mes" [value]="fmt(summary().income)" tone="income" />
-        <app-stat-tile label="Egresos del mes" [value]="fmt(summary().expense)" tone="expense" />
-        <app-stat-tile label="Saldo neto" [value]="fmt(summary().net)" [negative]="summary().net < 0" hint="Ingresos − egresos" />
-        <app-stat-tile label="Ahorro" [value]="savings()" hint="Saldo neto / ingresos" />
+        <app-stat-tile label="Ingresos del mes" [amount]="summary().income" tone="income" icon="trending-up" />
+        <app-stat-tile label="Egresos del mes" [amount]="summary().expense" tone="expense" icon="trending-down" />
+        <app-stat-tile label="Saldo neto" [amount]="summary().net" [negative]="summary().net < 0" hint="Ingresos − egresos" icon="arrow-left-right" />
+        <app-stat-tile label="Ahorro" [value]="savings()" hint="Saldo neto / ingresos" icon="piggy-bank" />
       </section>
 
       <app-upcoming-summary />

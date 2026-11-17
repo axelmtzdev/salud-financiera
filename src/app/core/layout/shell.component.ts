@@ -16,7 +16,7 @@ const LEGACY_LATER_KEY = 'salud-financiera.subir-despues';
   imports: [RouterOutlet, HeaderComponent, SidebarComponent, BottomNavComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-header [userName]="auth.userName()" (logout)="logout()" />
+    <app-header [userName]="auth.userName()" [saving]="storage.saving()" (logout)="logout()" />
     <div class="shell">
       <app-sidebar />
       <main class="shell__main">
@@ -45,7 +45,7 @@ export class ShellComponent {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
-  private readonly storage = inject(StorageService);
+  protected readonly storage = inject(StorageService);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
 

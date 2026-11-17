@@ -8,17 +8,20 @@
   </header>
 
   @if (accounts.balances(); as b) {
-    <section class="cuentas" aria-label="Saldo por cuenta">
+    <section class="cuentas cascada" aria-label="Saldo por cuenta">
       <div class="cuenta cuenta--total tarjeta-elevada">
         <span class="etiqueta">Saldo disponible</span>
-        <strong class="cuenta__saldo pc-num" [class.text-expense]="b.total < 0">{{ b.total | currencyFormat }}</strong>
+        <strong class="cuenta__saldo pc-num" [class.text-expense]="b.total < 0" [appCountUp]="b.total"></strong>
         <span class="cuenta__ayuda">Al día de hoy, {{ today | dateFormat: 'short' }}</span>
       </div>
       @for (kind of kinds; track kind) {
         @let s = b[kind];
         <div class="cuenta tarjeta-elevada">
-          <span class="etiqueta cuenta__nombre"><svg [lucideIcon]="icon[kind]" [size]="14" aria-hidden="true"></svg> {{ label[kind] }}</span>
-          <strong class="cuenta__saldo pc-num" [class.text-expense]="s.balance < 0">{{ s.balance | currencyFormat }}</strong>
+          <span class="etiqueta cuenta__nombre">
+            <span class="icono-color" [style.--c]="color[kind]"><svg [lucideIcon]="icon[kind]" [size]="14" aria-hidden="true"></svg></span>
+            {{ label[kind] }}
+          </span>
+          <strong class="cuenta__saldo pc-num" [class.text-expense]="s.balance < 0" [appCountUp]="s.balance"></strong>
           <dl class="cuenta__detalle pc-num">
             <div><dt>Saldo inicial</dt><dd>{{ s.opening | currencyFormat }}</dd></div>
             <div><dt>Ingresos</dt><dd class="text-income">+{{ s.income | currencyFormat }}</dd></div>

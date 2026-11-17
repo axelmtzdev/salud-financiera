@@ -38,7 +38,7 @@ const rec = (over: Partial<RecurringPayment> = {}): RecurringPayment => ({
   match: 'netflix',
   subscription: true,
   createdAt: '2026-01-01T00:00:00.000Z',
-  kind: 'fijo' as const, installments: null, startMonth: null, date: null, amounts: {}, paidDues: [],
+  kind: 'fijo' as const, installments: null, startMonth: null, date: null, amounts: {}, paidDues: [], type: 'egreso' as const, secondDay: null,
   ...over,
 });
 
@@ -135,6 +135,39 @@ describe('recurring.utils', () => {
       expect(sanitizeRecurring({ name: 'Netflix', category: 'X', amount: 1, frequency: 'mensual', day: 3, amounts: { '2026-01': 9 } })?.amounts).toEqual({});
       const { data } = sanitizeAppData({ planned: [{ id: 'p1', description: 'Tenencia', category: 'Transporte', amount: 1500, date: '2026-04-30' }] });
       expect(data.recurring).toEqual([jasmine.objectContaining({ id: 'p1', kind: 'unico', name: 'Tenencia', date: '2026-04-30', day: 30, match: 'tenencia' })]);
+    });
+  });
+
+  describe('ingresos programados', () => {
+    const nomina = rec({ id: 'n', name: 'Nómina', match: 'nomina', category: 'Salario', amount: 16000, day: 15, secondDay: 30, type: 'ingreso', subscription: false });
+
+    it('quincena: dos fechas al mes (el 30 se ajusta en febrero)', () => {
+      expect(dueDatesBetween(nomina, '2026-02-01', '2026-03-31')).toEqual(['2026-02-15', '2026-02-28', '2026-03-15', '2026-03-30']);
+      expect(recurringTotals([nomina], [], TODAY).monthly).toBe(32000);
+    });
+
+    it('solo un ingreso marca como recibido un ingreso programado (y un egreso, un pago)', () => {
+      const ingreso = mv('Salario', 16000, '2026-03-15', 'Nómina quincena', 'ingreso');
+      const egreso = mv('Salario', 16000, '2026-03-15', 'Nómina quincena');
+      expect(currentOccurrence(nomina, [egreso], '2026-03-16')?.status).toBe('vencido');
+      expect(currentOccurrence(nomina, [ingreso], '2026-03-16')?.status).toBe('pagado');
+    });
+
+    it('valida: un ingreso no va a plazos y el segundo día solo en mensuales', () => {
+      expect(sanitizeRecurring({ name: 'X', category: 'Salario', amount: 1, kind: 'plazos', type: 'ingreso', day: 1, installments: 2, startMonth: '2026-01' })).toBeNull();
+      expect(sanitizeRecurring({ name: 'X', category: 'Salario', amount: 1, frequency: 'anual', month: 3, day: 1, secondDay: 15, type: 'ingreso' })?.secondDay).toBeNull();
+      expect(sanitizeRecurring({ name: 'X', category: 'Salario', amount: 1, frequency: 'mensual', day: 15, secondDay: 15 })?.secondDay).toBeNull();
+      expect(sanitizeRecurring({ name: 'X', category: 'Y', amount: 1, frequency: 'mensual', day: 15 })?.type).toBe('egreso');
+    });
+
+    it('el indicador del mes cuenta lo que falta por cobrar', () => {
+      const renta = rec({ id: 'r2', name: 'Renta', match: 'renta', amount: 12000, day: 25, subscription: false });
+      // Hoy (20 de marzo) faltan la renta y la quincena del 30; ya llegó la del 15
+      const movs = [mv('Salario', 16000, '2026-03-15', 'Nómina', 'ingreso')];
+      const c = monthCoverage([renta, nomina], movs, 5000, TODAY);
+      expect(c).toEqual(jasmine.objectContaining({ pending: 12000, incoming: 16000, after: -7000, afterWithIncome: 9000, level: 'justo' }));
+      expect(monthCoverage([renta, nomina], movs, 5000, '2026-03-31').level).toBe('justo');
+      expect(monthCoverage([renta], [], 5000, TODAY).level).toBe('riesgo');
     });
   });
 

@@ -22,7 +22,13 @@
 
 :host-context(.dark) .cuenta { border-color: var(--border); }
 
-.cuenta__nombre { display: inline-flex; align-items: center; gap: 6px; }
+.cuenta__nombre { display: inline-flex; align-items: center; gap: 8px; }
+.cuenta__nombre .icono-color { width: 26px; height: 26px; border-radius: 8px; }
+.cuenta--total {
+  background:
+    radial-gradient(100% 120% at 0% 0%, color-mix(in oklab, var(--serie-1) 12%, transparent), transparent 60%),
+    var(--surface-elevada);
+}
 .cuenta__saldo { font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: -0.025em; }
 .cuenta--total .cuenta__saldo { font-size: 30px; line-height: 36px; }
 .cuenta__ayuda { font-size: 12px; color: var(--texto-tenue); }

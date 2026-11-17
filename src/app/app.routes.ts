@@ -75,7 +75,7 @@ export const routes: Routes = [
       },
       {
         path: 'pagos',
-        title: 'Pagos · Salud Financiera',
+        title: 'Pagos e ingresos · Salud Financiera',
         loadComponent: () => import('./features/recurring/recurring.component').then((m) => m.RecurringComponent),
       },
       {

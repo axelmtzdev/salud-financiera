@@ -6,8 +6,9 @@ import { AccountsService } from '../../core/services/accounts.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { ToastService } from '../../core/services/toast.service';
 import { CardComponent } from '../../shared/components/card/card.component';
-import { ACCOUNT_ICON, ACCOUNT_LABEL, ACCOUNT_SHORT_LABEL, DESCRIPTION_MAX_LENGTH, RETENTION_YEARS } from '../../shared/models/categories';
+import { ACCOUNT_COLOR, ACCOUNT_ICON, ACCOUNT_LABEL, ACCOUNT_SHORT_LABEL, DESCRIPTION_MAX_LENGTH, RETENTION_YEARS } from '../../shared/models/categories';
 import { ACCOUNT_KINDS, AccountKind, Transfer } from '../../shared/models/finance.models';
+import { CountUpDirective } from '../../shared/directives/count-up.directive';
 import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
 import { DateFormatPipe } from '../../shared/pipes/date-format.pipe';
 import { addYears, todayIso } from '../../shared/utils/date.utils';
@@ -26,7 +27,7 @@ const DIRECTIONS = [
 /** Saldo disponible por cuenta, saldo inicial y traspasos entre efectivo y tarjeta/transferencia. */
 @Component({
   selector: 'app-accounts',
-  imports: [ReactiveFormsModule, LucideDynamicIcon, CardComponent, CurrencyFormatPipe, DateFormatPipe],
+  imports: [ReactiveFormsModule, LucideDynamicIcon, CardComponent, CurrencyFormatPipe, DateFormatPipe, CountUpDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './accounts.component.html',
   styleUrl: './accounts.component.scss',
@@ -40,6 +41,7 @@ export class AccountsComponent {
   protected readonly label = ACCOUNT_LABEL;
   protected readonly shortLabel = ACCOUNT_SHORT_LABEL;
   protected readonly icon = ACCOUNT_ICON;
+  protected readonly color = ACCOUNT_COLOR;
   protected readonly directions = DIRECTIONS;
   protected readonly abs = Math.abs;
   protected readonly descriptionMax = DESCRIPTION_MAX_LENGTH;

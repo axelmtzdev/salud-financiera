@@ -42,7 +42,7 @@ const renta: RecurringPayment = {
   match: 'renta',
   subscription: false,
   createdAt: '2026-01-01T00:00:00.000Z',
-  kind: 'fijo' as const, installments: null, startMonth: null, date: null, amounts: {}, paidDues: [],
+  kind: 'fijo' as const, installments: null, startMonth: null, date: null, amounts: {}, paidDues: [], type: 'egreso' as const, secondDay: null,
 };
 
 const TODAY = '2026-04-10';
@@ -111,6 +111,25 @@ describe('projection.utils', () => {
     expect(junio).toEqual(jasmine.objectContaining({ goals: 0, net: 10000, balance: -26000 }));
     expect(projection.firstNegative?.key).toBe('2026-04');
     expect(projection.lowest?.key).toBe('2026-05');
+  });
+
+  it('los ingresos programados reemplazan su parte del promedio y llegan en su fecha', () => {
+    const nomina = { ...renta, id: 'n', name: 'Nómina', match: 'nomina', category: 'Salario', amount: 15000, day: 1, secondDay: 15, type: 'ingreso' as const };
+    // Febrero y marzo: dos quincenas de 15,000 reconocidas más 2,000 de honorarios en marzo
+    const conNomina = [
+      ...movements.filter((m) => m.type === 'egreso'),
+      mv('ingreso', 15000, '2026-02-01', 'Nómina'),
+      mv('ingreso', 15000, '2026-02-15', 'Nómina'),
+      mv('ingreso', 15000, '2026-03-01', 'Nómina'),
+      mv('ingreso', 15000, '2026-03-15', 'Nómina'),
+      mv('ingreso', 2000, '2026-03-20', 'Honorarios'),
+      mv('ingreso', 15000, '2026-04-01', 'Nómina'),
+    ];
+    const p = projectBalance({ today: TODAY, start: 0, horizon: 2, movements: conNomina, recurring: [nomina], goals: [], contributions: [] });
+    expect(p.basis.avgIncome).toBe(1000); // solo los honorarios, promediados en 2 meses
+    // Abril: la quincena del 1 ya llegó; falta la del 15 más el promedio de otros ingresos
+    expect(p.months[0].income).toBe(16000);
+    expect(p.months[1].income).toBe(31000);
   });
 
   it('valida metas y abonos', () => {

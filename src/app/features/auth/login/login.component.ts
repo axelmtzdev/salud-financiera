@@ -63,6 +63,9 @@ import { afterLoginTarget } from '../../quick-add/quick-add-stash';
         }
 
         <button type="submit" class="pc-boton pc-boton--grande pc-boton--bloque boton-primario-elevado" [disabled]="sending()">
+          @if (sending()) {
+            <span class="spinner" aria-hidden="true"></span>
+          }
           {{ sending() ? 'Entrando…' : 'Entrar' }}
         </button>
         @if (sending() && api.waking()) {

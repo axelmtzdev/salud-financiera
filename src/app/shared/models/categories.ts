@@ -4,6 +4,7 @@ export const ACCOUNT_LABEL: Readonly<Record<AccountKind, string>> = { efectivo: 
 /** Para espacios cortos (filtros, chips) */
 export const ACCOUNT_SHORT_LABEL: Readonly<Record<AccountKind, string>> = { efectivo: 'Efectivo', banco: 'Tarjeta' };
 export const ACCOUNT_ICON: Readonly<Record<AccountKind, string>> = { efectivo: 'banknote', banco: 'credit-card' };
+export const ACCOUNT_COLOR: Readonly<Record<AccountKind, string>> = { efectivo: 'var(--serie-2)', banco: 'var(--serie-1)' };
 
 export const CATEGORY_MAX_LENGTH = 20;
 export const DESCRIPTION_MAX_LENGTH = 120;

@@ -3,21 +3,22 @@ import { RouterLink } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { AccountsService } from '../../core/services/accounts.service';
 import { GoalsService } from '../../core/services/goals.service';
-import { ACCOUNT_ICON, ACCOUNT_LABEL } from '../../shared/models/categories';
+import { CountUpDirective } from '../../shared/directives/count-up.directive';
+import { ACCOUNT_COLOR, ACCOUNT_ICON, ACCOUNT_LABEL } from '../../shared/models/categories';
 import { ACCOUNT_KINDS } from '../../shared/models/finance.models';
 import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
 
 /** Saldo disponible total y por cuenta, para la pantalla principal. Sin saldo inicial invita a capturarlo. */
 @Component({
   selector: 'app-balance-summary',
-  imports: [RouterLink, LucideDynamicIcon, CurrencyFormatPipe],
+  imports: [RouterLink, LucideDynamicIcon, CurrencyFormatPipe, CountUpDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (accounts.balances(); as b) {
-      <a class="saldo" routerLink="/cuentas" aria-label="Ver cuentas">
+      <a class="saldo tarjeta-levitar" routerLink="/cuentas" aria-label="Ver cuentas">
         <div class="saldo__total">
           <span class="etiqueta">Saldo disponible</span>
-          <strong class="saldo__valor pc-num" [class.text-expense]="b.total < 0">{{ b.total | currencyFormat }}</strong>
+          <strong class="saldo__valor pc-num" [class.text-expense]="b.total < 0" [appCountUp]="b.total"></strong>
           @if (goals.reservedTotal() > 0) {
             <span class="saldo__ayuda pc-num">
               Libre {{ goals.free()!.total | currencyFormat }} · {{ goals.reservedTotal() | currencyFormat }} apartado para metas
@@ -29,15 +30,18 @@ import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
         <ul class="saldo__cuentas">
           @for (kind of kinds; track kind) {
             <li>
-              <span class="saldo__cuenta"><svg [lucideIcon]="icon[kind]" [size]="15" aria-hidden="true"></svg> {{ label[kind] }}</span>
-              <strong class="pc-num" [class.text-expense]="b[kind].balance < 0">{{ b[kind].balance | currencyFormat }}</strong>
+              <span class="saldo__cuenta">
+                <span class="icono-color" [style.--c]="color[kind]"><svg [lucideIcon]="icon[kind]" [size]="14" aria-hidden="true"></svg></span>
+                {{ label[kind] }}
+              </span>
+              <strong class="pc-num" [class.text-expense]="b[kind].balance < 0" [appCountUp]="b[kind].balance"></strong>
             </li>
           }
         </ul>
         <svg class="saldo__flecha" lucideIcon="chevron-right" [size]="16" aria-hidden="true"></svg>
       </a>
     } @else {
-      <a class="saldo saldo--vacio" routerLink="/cuentas">
+      <a class="saldo saldo--vacio tarjeta-levitar" routerLink="/cuentas">
         <span class="saldo__icono"><svg lucideIcon="landmark" [size]="18" aria-hidden="true"></svg></span>
         <span class="saldo__invitacion">
           <strong>Agrega tu saldo inicial</strong>
@@ -56,11 +60,18 @@ import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
       padding: 20px 44px 20px 20px;
       color: inherit;
       text-decoration: none;
-      background: var(--surface-elevada);
+      /* Degradado suave con los colores de las cuentas */
+      background:
+        radial-gradient(90% 130% at 0% 0%, color-mix(in oklab, var(--serie-1) 11%, transparent), transparent 55%),
+        radial-gradient(70% 110% at 100% 100%, color-mix(in oklab, var(--serie-2) 9%, transparent), transparent 60%),
+        var(--surface-elevada);
       border: 1px solid transparent;
       border-radius: var(--radius-xl);
       box-shadow: var(--sombra-elevada);
-      transition: border-color var(--duracion-color) ease;
+      transition:
+        border-color var(--duracion-color) ease,
+        box-shadow var(--duracion-soltar) var(--ease-entrada),
+        transform var(--duracion-soltar) var(--ease-entrada);
     }
     :host-context(.dark) .saldo { border-color: var(--border); }
     .saldo:hover { border-color: var(--ring); }
@@ -80,7 +91,10 @@ import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
       border: 1px solid var(--border-suave);
       font-size: 13px;
     }
-    .saldo__cuenta { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-foreground); font-weight: 500; }
+    .saldo__cuenta { display: inline-flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-weight: 500; }
+    .saldo__cuenta .icono-color { width: 26px; height: 26px; border-radius: 8px; }
+    .saldo:hover .saldo__flecha { transform: translate(3px, -50%); color: var(--texto-activo); }
+    .saldo__flecha { transition: transform var(--duracion-soltar) var(--ease-resorte), color var(--duracion-color); }
     .saldo__flecha { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); color: var(--texto-tenue); }
     @media (min-width: 720px) {
       .saldo { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; }
@@ -109,4 +123,5 @@ export class BalanceSummaryComponent {
   protected readonly kinds = ACCOUNT_KINDS;
   protected readonly label = ACCOUNT_LABEL;
   protected readonly icon = ACCOUNT_ICON;
+  protected readonly color = ACCOUNT_COLOR;
 }

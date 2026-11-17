@@ -32,10 +32,10 @@
   </section>
 
   <section class="stats-grid" aria-label="Resumen general">
-    <app-stat-tile label="Total de ingresos" [value]="fmt(summary().income)" tone="income" />
-    <app-stat-tile label="Total de egresos" [value]="fmt(summary().expense)" tone="expense" />
-    <app-stat-tile label="Saldo neto" [value]="fmt(summary().net)" [negative]="summary().net < 0" hint="Ingresos − egresos" />
-    <app-stat-tile label="Porcentaje de ahorro" [value]="savings()" hint="Saldo neto / ingresos" />
+    <app-stat-tile label="Total de ingresos" [amount]="summary().income" tone="income" icon="trending-up" />
+    <app-stat-tile label="Total de egresos" [amount]="summary().expense" tone="expense" icon="trending-down" />
+    <app-stat-tile label="Saldo neto" [amount]="summary().net" [negative]="summary().net < 0" hint="Ingresos − egresos" icon="arrow-left-right" />
+    <app-stat-tile label="Porcentaje de ahorro" [value]="savings()" hint="Saldo neto / ingresos" icon="piggy-bank" />
   </section>
 
   <app-card title="Recomendaciones para ahorrar" subtitle="Se calculan solas a partir de tus movimientos">

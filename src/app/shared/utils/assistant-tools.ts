@@ -288,13 +288,23 @@ const TOOLS: readonly ToolSpec[] = [
       '"¿cuánto gasto en suscripciones?" o "¿ya pagué la renta?".',
     parameters: params({}),
     run: (_args, { data, today }) => {
-      const totals = recurringTotals(data.recurring, data.movements, today);
+      const payments = data.recurring.filter((r) => r.type === 'egreso');
+      const incomes = data.recurring.filter((r) => r.type === 'ingreso');
+      const totals = recurringTotals(payments, data.movements, today);
       return {
         moneda: APP_CURRENCY,
         compromisoMensual: totals.monthly,
         suscripcionesMensual: totals.subscriptionsMonthly,
         faltaPagarEsteMes: totals.pendingThisMonth,
-        pagos: data.recurring.map((r) => {
+        ingresosProgramados: incomes.map((r) => ({
+          nombre: r.name,
+          tipo: r.kind,
+          monto: r.amount,
+          dias: [r.day, ...(r.secondDay ? [r.secondDay] : [])],
+          fechaUnica: r.date,
+          vencimientoActual: currentOccurrence(r, data.movements, today)?.due ?? null,
+        })),
+        pagos: payments.map((r) => {
           const o = currentOccurrence(r, data.movements, today);
           return {
             nombre: r.name,
@@ -311,17 +321,17 @@ const TOOLS: readonly ToolSpec[] = [
             vencimientoActual: o ? { fecha: o.due, estado: o.status } : null,
           };
         }),
-        proximos30Dias: upcomingPayments(data.recurring, data.movements, today, 30).map((o) => ({
+        proximos30Dias: upcomingPayments(payments, data.movements, today, 30).map((o) => ({
           nombre: o.payment.name,
           fecha: o.due,
           estado: o.status,
           monto: o.amount,
         })),
-        cambiosDePrecio: data.recurring
+        cambiosDePrecio: payments
           .map((r) => priceChange(r, data.movements, today))
           .filter((c) => c !== null)
           .map((c) => ({ nombre: c.payment.name, antes: c.from, ahora: c.to, fecha: c.date })),
-        detectadosSinRegistrar: detectRecurring(data.movements, data.recurring, data.recurringIgnored, today).map((d) => ({
+        detectadosSinRegistrar: detectRecurring(data.movements, payments, data.recurringIgnored, today).map((d) => ({
           nombre: d.name,
           monto: d.amount,
           dia: d.day,

@@ -57,7 +57,8 @@ const isRecurring = (m: Movement, recurring: readonly RecurringPayment[]) => rec
 
 /**
  * Promedio mensual de ingresos y de gasto variable en los últimos meses cerrados con movimientos.
- * Los egresos que corresponden a un pago recurrente se excluyen: esos se proyectan por su fecha.
+ * Los movimientos que corresponden a un pago o a un ingreso programado se excluyen: esos se
+ * proyectan por su fecha.
  */
 export function projectionBasis(movements: readonly Movement[], recurring: readonly RecurringPayment[], today: string): ProjectionBasis {
   const candidates = lastMonthKeys(shiftMonthKey(monthKey(today), -1), PROJECTION_BASIS_MONTHS);
@@ -66,8 +67,9 @@ export function projectionBasis(movements: readonly Movement[], recurring: reado
   let variable = 0;
   for (const m of movements) {
     if (!months.includes(monthKey(m.date))) continue;
+    if (isRecurring(m, recurring)) continue;
     if (m.type === 'ingreso') income += m.amount;
-    else if (!isRecurring(m, recurring)) variable += m.amount;
+    else variable += m.amount;
   }
   const n = months.length || 1;
   return { avgIncome: round2(income / n), avgVariable: round2(variable / n), months };
@@ -83,7 +85,7 @@ export function projectBalance(input: ProjectionInput): Projection {
   const basis = projectionBasis(movements, recurring, today);
   const current = monthKey(today);
   const thisMonth = movements.filter((m) => monthKey(m.date) === current && m.date <= today);
-  const incomeSoFar = thisMonth.filter((m) => m.type === 'ingreso').reduce((s, m) => s + m.amount, 0);
+  const incomeSoFar = thisMonth.filter((m) => m.type === 'ingreso' && !isRecurring(m, recurring)).reduce((s, m) => s + m.amount, 0);
   const variableSoFar = thisMonth.filter((m) => m.type === 'egreso' && !isRecurring(m, recurring)).reduce((s, m) => s + m.amount, 0);
 
   // El ahorro mensual de cada meta se fija hoy y se aparta hasta su mes objetivo
@@ -99,7 +101,7 @@ export function projectBalance(input: ProjectionInput): Projection {
     const { from, to } = monthRange(key);
     const isCurrent = i === 0;
 
-    const income = isCurrent ? Math.max(0, basis.avgIncome - incomeSoFar) : basis.avgIncome;
+    let income = isCurrent ? Math.max(0, basis.avgIncome - incomeSoFar) : basis.avgIncome;
     const variable = isCurrent ? Math.max(0, basis.avgVariable - variableSoFar) : basis.avgVariable;
     let recurringTotal = 0;
     let plannedTotal = 0;
@@ -107,7 +109,8 @@ export function projectBalance(input: ProjectionInput): Projection {
       for (const due of dueDatesBetween(rec, from, to)) {
         // Del mes en curso: lo que no se ha pagado (aunque ya haya vencido)
         if (isCurrent && isDuePaid(rec, due, movements)) continue;
-        if (rec.kind === 'unico') plannedTotal += amountFor(rec, due);
+        if (rec.type === 'ingreso') income += amountFor(rec, due);
+        else if (rec.kind === 'unico') plannedTotal += amountFor(rec, due);
         else recurringTotal += amountFor(rec, due);
       }
     }

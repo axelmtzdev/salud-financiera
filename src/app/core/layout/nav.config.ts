@@ -7,6 +7,8 @@ export interface NavLink {
   tabLabel?: string;
   /** Nombre de ícono Lucide */
   icon: string;
+  /** Color de la sección (token de la paleta categórica) */
+  color: string;
   exact: boolean;
   /** Muestra el contador de cargos por confirmar */
   pendingBadge?: boolean;
@@ -24,28 +26,28 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: 'Principal',
     links: [
-      { path: '/movimientos', label: 'Movimientos', tabLabel: 'Inicio', icon: 'list', exact: true, pendingBadge: true },
-      { path: '/presupuestos', label: 'Presupuestos', tabLabel: 'Presupuesto', icon: 'target', exact: false },
-      { path: '/analisis', label: 'Análisis', icon: 'chart-column', exact: false },
-      { path: '/cuentas', label: 'Cuentas', icon: 'landmark', exact: false },
+      { path: '/movimientos', label: 'Movimientos', tabLabel: 'Inicio', icon: 'list', color: 'var(--serie-1)', exact: true, pendingBadge: true },
+      { path: '/presupuestos', label: 'Presupuestos', tabLabel: 'Presupuesto', icon: 'target', color: 'var(--serie-3)', exact: false },
+      { path: '/analisis', label: 'Análisis', icon: 'chart-column', color: 'var(--serie-6)', exact: false },
+      { path: '/cuentas', label: 'Cuentas', icon: 'landmark', color: 'var(--serie-2)', exact: false },
     ],
   },
   {
     // Aquí entrarán también tarjetas y MSI
     label: 'Planear',
     links: [
-      { path: '/pagos', label: 'Pagos', icon: 'repeat', exact: false },
-      { path: '/metas', label: 'Metas', icon: 'flag', exact: false },
-      { path: '/proyeccion', label: 'Proyección', icon: 'trending-up', exact: false },
+      { path: '/pagos', label: 'Pagos e ingresos', icon: 'repeat', color: 'var(--serie-7)', exact: false },
+      { path: '/metas', label: 'Metas', icon: 'flag', color: 'var(--serie-5)', exact: false },
+      { path: '/proyeccion', label: 'Proyección', icon: 'trending-up', color: 'var(--serie-4)', exact: false },
     ],
   },
   {
     label: 'Herramientas',
-    links: [{ path: '/preguntas', label: 'Preguntas', icon: 'message-circle-question-mark', exact: false }],
+    links: [{ path: '/preguntas', label: 'Preguntas', icon: 'message-circle-question-mark', color: 'var(--info)', exact: false }],
   },
   {
     label: 'Cuenta',
-    links: [{ path: '/ajustes', label: 'Ajustes', icon: 'settings', exact: false }],
+    links: [{ path: '/ajustes', label: 'Ajustes', icon: 'settings', color: 'var(--muted-foreground)', exact: false }],
   },
 ];
 

@@ -11,6 +11,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { CardComponent } from '../../shared/components/card/card.component';
 import { ACCOUNT_ICON, ACCOUNT_LABEL, ACCOUNT_SHORT_LABEL } from '../../shared/models/categories';
 import { ACCOUNT_KINDS, AccountKind, GoalContribution } from '../../shared/models/finance.models';
+import { CountUpDirective } from '../../shared/directives/count-up.directive';
 import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
 import { DateFormatPipe } from '../../shared/pipes/date-format.pipe';
 import { addYears, monthDiff, monthKey, monthLabel, todayIso } from '../../shared/utils/date.utils';
@@ -33,7 +34,7 @@ const STATUS_LABEL: Record<GoalStatus, string> = {
 /** Metas de ahorro: precio, fecha opcional, abonos que apartan dinero y barra de progreso. */
 @Component({
   selector: 'app-goals',
-  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, LucideDynamicIcon, CardComponent, CurrencyFormatPipe, DateFormatPipe],
+  imports: [ReactiveFormsModule, RouterLink, DecimalPipe, LucideDynamicIcon, CardComponent, CurrencyFormatPipe, DateFormatPipe, CountUpDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './goals.component.html',
   styleUrl: './goals.component.scss',

@@ -27,10 +27,10 @@
   }
 
   <section class="stats-grid stats-grid--3" aria-label="Resumen de la proyección">
-    <app-stat-tile label="Libre hoy" [value]="fmt(result().start)" [negative]="result().start < 0" hint="Saldo disponible − apartado para metas" />
-    <app-stat-tile [label]="'Al cierre de ' + last().label" [value]="fmt(last().balance)" [negative]="last().balance < 0" [hint]="signed(last().balance - result().start) + ' contra hoy'" />
+    <app-stat-tile label="Libre hoy" [amount]="result().start" [negative]="result().start < 0" hint="Saldo disponible − apartado para metas" icon="wallet" />
+    <app-stat-tile [label]="'Al cierre de ' + last().label" [amount]="last().balance" [negative]="last().balance < 0" icon="trending-up" [hint]="signed(last().balance - result().start) + ' contra hoy'" />
     @if (result().lowest; as low) {
-      <app-stat-tile label="Mes más bajo" [value]="fmt(low.balance)" [negative]="low.balance < 0" [hint]="monthName(low.key)" />
+      <app-stat-tile label="Mes más bajo" [amount]="low.balance" [negative]="low.balance < 0" [hint]="monthName(low.key)" [tone]="low.balance < 0 ? 'expense' : 'neutral'" icon="arrow-down-wide-narrow" />
     }
   </section>
 
@@ -79,8 +79,8 @@
     </div>
     <p class="base">
       @if (basisText(); as months) {
-        Ingresos ({{ result().basis.avgIncome | currencyFormat }}/mes) y gastos del día a día ({{ result().basis.avgVariable | currencyFormat }}/mes):
-        promedio de {{ months }}.
+        Ingresos sin programar ({{ result().basis.avgIncome | currencyFormat }}/mes) y gastos del día a día ({{ result().basis.avgVariable | currencyFormat }}/mes):
+        promedio de {{ months }}. Tus ingresos programados se suman en su fecha.
       } @else {
         Aún no hay meses cerrados con movimientos: solo se proyectan pagos fijos, gastos planeados y metas.
       }

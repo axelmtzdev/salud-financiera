@@ -81,7 +81,7 @@ export class QuickQuestionsComponent {
       this.finance.movements(),
       this.today,
       this.budgets.budgets(),
-      this.recurring.list(),
+      this.recurring.payments(),
     ),
   );
 

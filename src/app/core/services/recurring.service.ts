@@ -1,5 +1,5 @@
 import { Injectable, computed, inject } from '@angular/core';
-import { Movement, PaymentKind, RecurringFrequency, RecurringPayment } from '../../shared/models/finance.models';
+import { Movement, MovementType, PaymentKind, RecurringFrequency, RecurringPayment } from '../../shared/models/finance.models';
 import { isValidIsoDate, monthKey, todayIso } from '../../shared/utils/date.utils';
 import { round2 } from '../../shared/utils/format.utils';
 import { uuid } from '../../shared/utils/id.utils';
@@ -20,6 +20,8 @@ import { StorageService } from './storage.service';
 const MAX_AMOUNT = 999_999_999;
 
 export interface RecurringInput {
+  /** egreso = pago; ingreso = ingreso programado */
+  type: MovementType;
   kind: PaymentKind;
   name: string;
   category: string;
@@ -35,13 +37,18 @@ export interface RecurringInput {
   startMonth: string | null;
   /** unico */
   date: string | null;
+  /** Otro día del mes (quincenas); solo fijos mensuales y variables */
+  secondDay: number | null;
 }
 
 const MAX_INSTALLMENTS = 360;
 
 export type RecurringResult = { ok: true; payment: RecurringPayment } | { ok: false; error: string };
 
-/** Pagos fijos, créditos a plazos, montos variables y pagos únicos: registro, estado y detección en el historial. */
+/**
+ * Pagos (fijos, a plazos, variables y únicos) e ingresos programados (ej. nómina quincenal): registro,
+ * estado de cada vencimiento y detección de pagos en el historial.
+ */
 @Injectable({ providedIn: 'root' })
 export class RecurringService {
   private readonly storage = inject(StorageService);
@@ -57,26 +64,37 @@ export class RecurringService {
         a.name.localeCompare(b.name, 'es'),
     ),
   );
-  readonly hasAny = computed(() => this.list().length > 0);
+  /** Solo pagos (egresos) */
+  readonly payments = computed(() => this.list().filter((r) => r.type === 'egreso'));
+  /** Solo ingresos programados */
+  readonly incomes = computed(() => this.list().filter((r) => r.type === 'ingreso'));
+  readonly hasAny = computed(() => this.payments().length > 0);
 
   /** Cada pago con su vencimiento actual y, si es a plazos, su avance. */
-  readonly rows = computed(() =>
-    this.list().map((payment) => ({
-      payment,
-      occurrence: currentOccurrence(payment, this.finance.movements(), this.today),
-      progress: installmentProgress(payment, this.finance.movements()),
-    })),
-  );
-  readonly upcoming = computed(() => upcomingPayments(this.list(), this.finance.movements(), this.today, 30));
-  readonly totals = computed(() => recurringTotals(this.list(), this.finance.movements(), this.today));
+  readonly rows = computed(() => this.rowsOf(this.payments()));
+  readonly upcoming = computed(() => upcomingPayments(this.payments(), this.finance.movements(), this.today, 30));
+  readonly totals = computed(() => recurringTotals(this.payments(), this.finance.movements(), this.today));
   readonly priceChanges = computed(() =>
-    this.list()
+    this.payments()
       .map((r) => priceChange(r, this.finance.movements(), this.today))
       .filter((c) => c !== null),
   );
   readonly detected = computed(() =>
-    detectRecurring(this.finance.movements(), this.list(), this.storage.state().recurringIgnored, this.today),
+    detectRecurring(this.finance.movements(), this.payments(), this.storage.state().recurringIgnored, this.today),
   );
+
+  readonly incomeRows = computed(() => this.rowsOf(this.incomes()));
+  readonly incomeUpcoming = computed(() => upcomingPayments(this.incomes(), this.finance.movements(), this.today, 30));
+  /** monthly = ingreso esperado al mes; pendingThisMonth = lo que falta por cobrar este mes */
+  readonly incomeTotals = computed(() => recurringTotals(this.incomes(), this.finance.movements(), this.today));
+
+  private rowsOf(list: RecurringPayment[]) {
+    return list.map((payment) => ({
+      payment,
+      occurrence: currentOccurrence(payment, this.finance.movements(), this.today),
+      progress: installmentProgress(payment, this.finance.movements()),
+    }));
+  }
 
   save(input: RecurringInput, id?: string): RecurringResult {
     const name = collapseSpaces(input.name);
@@ -84,7 +102,8 @@ export class RecurringService {
     if (!input.category) return { ok: false, error: 'Elige una categoría.' };
     if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, error: 'El monto debe ser mayor a cero.' };
     if (input.amount > MAX_AMOUNT) return { ok: false, error: 'El monto es demasiado grande.' };
-    const { kind } = input;
+    const { kind, type } = input;
+    if (type === 'ingreso' && kind === 'plazos') return { ok: false, error: 'Un ingreso no puede ser a plazos.' };
     if (kind === 'unico') {
       if (!input.date || !isValidIsoDate(input.date)) return { ok: false, error: 'Elige la fecha del pago.' };
     } else if (!Number.isInteger(input.day) || input.day < 1 || input.day > 31) {
@@ -98,6 +117,12 @@ export class RecurringService {
         return { ok: false, error: `El número de pagos debe estar entre 1 y ${MAX_INSTALLMENTS}.` };
       }
       if (!input.startMonth || !/^\d{4}-\d{2}$/.test(input.startMonth)) return { ok: false, error: 'Elige el mes del primer pago.' };
+    }
+    const allowsSecondDay = kind === 'variable' || (kind === 'fijo' && input.frequency === 'mensual');
+    const secondDay = allowsSecondDay ? input.secondDay : null;
+    if (secondDay !== null) {
+      if (!Number.isInteger(secondDay) || secondDay < 1 || secondDay > 31) return { ok: false, error: 'El otro día debe estar entre 1 y 31.' };
+      if (secondDay === input.day) return { ok: false, error: 'El otro día debe ser distinto al primero.' };
     }
     const match = normalizeText(input.match) || normalizeText(name);
     if (match.length < 3) return { ok: false, error: 'El texto para reconocerlo debe tener al menos 3 letras.' };
@@ -113,7 +138,7 @@ export class RecurringService {
       day: kind === 'unico' ? Number(input.date!.slice(8)) : input.day,
       month: frequency === 'anual' ? input.month : null,
       match: match.slice(0, 60),
-      subscription: kind === 'fijo' && input.subscription,
+      subscription: kind === 'fijo' && type === 'egreso' && input.subscription,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       kind,
       installments: kind === 'plazos' ? input.installments : null,
@@ -122,6 +147,8 @@ export class RecurringService {
       // Los montos ya capturados de un variable se conservan al editarlo
       amounts: kind === 'variable' && existing?.kind === 'variable' ? existing.amounts : {},
       paidDues: existing?.paidDues ?? [],
+      type,
+      secondDay,
     };
     const ok = this.storage.update((data) => ({
       ...data,
@@ -133,6 +160,7 @@ export class RecurringService {
   /** Registra un pago detectado con lo que se vio en el historial. */
   addDetected(d: DetectedPayment): RecurringResult {
     return this.save({
+      type: 'egreso',
       kind: 'fijo',
       name: d.name,
       category: d.category,
@@ -145,6 +173,7 @@ export class RecurringService {
       installments: null,
       startMonth: null,
       date: null,
+      secondDay: null,
     });
   }
 
@@ -190,12 +219,13 @@ export class RecurringService {
   }
 
   /**
-   * Registra el egreso de un vencimiento con fecha de hoy y marca ese vencimiento como pagado (así
-   * cuenta aunque se adelante el pago). En los variables, el monto pagado queda como el de ese mes.
+   * Registra el egreso de un pago (o el ingreso de un ingreso programado) con fecha de hoy y marca ese
+   * vencimiento como pagado/recibido (así cuenta aunque se adelante). En los variables, el monto queda
+   * como el de ese mes.
    */
   markPaid(o: Occurrence): Movement | null {
     const movement = this.finance.add({
-      type: 'egreso',
+      type: o.payment.type,
       category: o.payment.category,
       amount: o.amount,
       date: this.today,

@@ -226,6 +226,8 @@ describe('assistant-tools', () => {
           date: null,
           amounts: {},
           paidDues: [],
+          type: 'egreso',
+          secondDay: null,
         },
       ],
     });

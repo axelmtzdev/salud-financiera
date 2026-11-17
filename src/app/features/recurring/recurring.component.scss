@@ -195,3 +195,17 @@
 }
 
 .plazos__texto { font-size: 11px; color: var(--texto-tenue); white-space: nowrap; }
+
+.pestanas { align-self: flex-start; }
+.pestanas__n {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+}
+.pestanas .active .pestanas__n { color: var(--primary-foreground); background: var(--primary); }
+.pago--ingreso .fecha { color: var(--ingreso-texto); }

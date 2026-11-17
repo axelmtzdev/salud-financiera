@@ -715,3 +715,118 @@ select.input {
 @media (max-width: 1023px) {
   .solo-escritorio { display: none !important; }
 }
+
+/* ---------- Experiencia: color, sombras y movimiento ---------- */
+
+:root {
+  --sombra-elevada-hover: 0 2px 6px rgba(31, 18, 32, 0.1), 0 20px 38px -16px rgba(31, 18, 32, 0.34);
+}
+.dark {
+  --sombra-elevada-hover: 0 2px 6px rgba(0, 0, 0, 0.5), 0 20px 38px -16px rgba(0, 0, 0, 0.85);
+}
+
+/* Tarjetas: la sombra crece al pasar el cursor; las que son enlace además se levantan */
+app-card,
+app-stat-tile,
+.tarjeta-elevada {
+  transition:
+    box-shadow var(--duracion-soltar) var(--ease-entrada),
+    transform var(--duracion-soltar) var(--ease-entrada),
+    border-color var(--duracion-color);
+}
+@media (hover: hover) {
+  app-stat-tile:hover,
+  a.tarjeta-elevada:hover,
+  .tarjeta-levitar:hover {
+    box-shadow: var(--sombra-elevada-hover);
+    transform: translateY(-2px);
+  }
+  app-card:hover { box-shadow: var(--sombra-elevada-hover); }
+}
+
+/* Indicadores y tarjetas entran en cascada */
+.stats-grid > *,
+.cascada > * {
+  animation: mov-entrar var(--duracion-soltar) var(--ease-entrada) backwards;
+}
+@for $i from 1 through 6 {
+  .stats-grid > :nth-child(#{$i}),
+  .cascada > :nth-child(#{$i}) { animation-delay: #{($i - 1) * 45}ms; }
+}
+
+/* Barras de progreso que crecen al aparecer */
+@keyframes barra-crecer {
+  from { transform: scaleX(0); }
+}
+.barra__relleno,
+.barra-crece,
+.fill {
+  transform-origin: left center;
+  animation: barra-crecer 900ms var(--ease-entrada) 120ms backwards;
+}
+
+/* Ícono sobre un fondo de su mismo color (secciones del menú, indicadores) */
+.icono-color {
+  --c: var(--primary);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--c);
+  background: color-mix(in oklab, var(--c) 14%, transparent);
+  transition: background-color var(--duracion-color), transform var(--duracion-soltar) var(--ease-resorte);
+}
+
+/* Cargando: spinner para botones y esqueletos para contenido */
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.15em;
+  animation: girar 700ms linear infinite;
+}
+
+@keyframes brillo {
+  to { background-position: -200% 0; }
+}
+.esqueleto {
+  display: block;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--muted) 25%, color-mix(in oklab, var(--muted) 55%, var(--surface-elevada)) 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: brillo 1.4s ease-in-out infinite;
+}
+
+/* Transición entre pantallas (View Transitions del router) */
+@keyframes vt-salir {
+  to { opacity: 0; }
+}
+@keyframes vt-entrar {
+  from { opacity: 0; }
+}
+::view-transition-old(root) { animation: 140ms ease-out both vt-salir; }
+::view-transition-new(root) { animation: 220ms var(--ease-entrada) both vt-entrar; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-grid > *,
+  .cascada > *,
+  .barra__relleno,
+  .barra-crece,
+  .fill { animation: none; }
+  .spinner { animation-duration: 1.6s; }
+  .esqueleto { animation: none; }
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+  app-stat-tile:hover,
+  a.tarjeta-elevada:hover,
+  .tarjeta-levitar:hover { transform: none; }
+}

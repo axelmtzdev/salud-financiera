@@ -154,12 +154,16 @@ export function sanitizeOpening(raw: unknown): OpeningBalance | null {
 
 export function sanitizeRecurring(raw: unknown): RecurringPayment | null {
   if (!isRecord(raw)) return null;
-  const { id, name, category, amount, frequency, month, match, subscription, createdAt, installments, startMonth, date, amounts, paidDues } = raw;
+  const { id, name, category, amount, frequency, month, match, subscription, createdAt, installments, startMonth, date, amounts, paidDues, secondDay } = raw;
+  // Los registrados antes de los ingresos programados son pagos
+  const type: MovementType = raw['type'] === 'ingreso' ? 'ingreso' : 'egreso';
   // Los pagos registrados antes de los tipos son fijos
   const kind: PaymentKind = PAYMENT_KINDS.includes(raw['kind'] as PaymentKind) ? (raw['kind'] as PaymentKind) : 'fijo';
   if (!nonEmptyString(name) || !nonEmptyString(category)) return null;
   if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) return null;
   if (kind === 'unico' && !isValidIsoDate(date)) return null;
+  // Un ingreso no se paga a plazos
+  if (type === 'ingreso' && kind === 'plazos') return null;
   if (kind === 'plazos' && (!Number.isInteger(installments) || (installments as number) < 1 || (installments as number) > 360 || !isMonthKey(startMonth))) {
     return null;
   }
@@ -192,6 +196,12 @@ export function sanitizeRecurring(raw: unknown): RecurringPayment | null {
     date: kind === 'unico' ? (date as string) : null,
     amounts: monthAmounts,
     paidDues: Array.isArray(paidDues) ? [...new Set(paidDues.filter(isValidIsoDate))].sort().slice(-400) : [],
+    type,
+    secondDay:
+      (kind === 'variable' || (kind === 'fijo' && freq === 'mensual')) &&
+      Number.isInteger(secondDay) && (secondDay as number) >= 1 && (secondDay as number) <= 31 && secondDay !== day
+        ? (secondDay as number)
+        : null,
   };
 }
 

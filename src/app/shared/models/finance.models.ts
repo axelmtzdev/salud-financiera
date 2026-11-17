@@ -159,6 +159,10 @@ export interface RecurringPayment {
   amounts: Record<string, number>;
   /** Vencimientos (YYYY-MM-DD) marcados como pagados desde la app, aunque el egreso caiga lejos de la fecha */
   paidDues: string[];
+  /** egreso = pago; ingreso = ingreso programado (ej. nómina) */
+  type: MovementType;
+  /** Otro día del mes en que se repite (ej. quincena: 15 y 30); solo mensuales fijos o variables */
+  secondDay: number | null;
 }
 
 export interface Budget {

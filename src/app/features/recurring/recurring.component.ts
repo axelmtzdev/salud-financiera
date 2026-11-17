@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { FinanceService } from '../../core/services/finance.service';
@@ -6,14 +7,23 @@ import { RecurringInput, RecurringService } from '../../core/services/recurring.
 import { ToastService } from '../../core/services/toast.service';
 import { CardComponent } from '../../shared/components/card/card.component';
 import { StatTileComponent } from '../../shared/components/stat-tile/stat-tile.component';
-import { PaymentKind, RecurringFrequency, RecurringPayment } from '../../shared/models/finance.models';
+import { MovementType, PaymentKind, RecurringFrequency, RecurringPayment } from '../../shared/models/finance.models';
 import { CurrencyFormatPipe } from '../../shared/pipes/currency-format.pipe';
 import { DateFormatPipe } from '../../shared/pipes/date-format.pipe';
 import { monthKey, monthLabel, shiftMonthKey, todayIso } from '../../shared/utils/date.utils';
 import { formatCurrency } from '../../shared/utils/format.utils';
 import { DetectedPayment, InstallmentProgress, Occurrence, PriceChange, lastInstallmentMonth } from '../../shared/utils/recurring.utils';
 
-const KINDS: readonly { value: PaymentKind; label: string; hint: string }[] = [
+type KindOption = { value: PaymentKind; label: string; hint: string };
+
+/** Los ingresos no van a plazos. */
+const INCOME_KINDS: readonly KindOption[] = [
+  { value: 'fijo', label: 'Fijo', hint: 'Mismo monto en fechas fijas: tu salario o tus quincenas, una renta que cobras.' },
+  { value: 'variable', label: 'Variable', hint: 'En fechas fijas con un monto que cambia: comisiones, honorarios.' },
+  { value: 'unico', label: 'Único', hint: 'Una sola vez en una fecha: aguinaldo, bono, reembolso.' },
+];
+
+const KINDS: readonly KindOption[] = [
   { value: 'fijo', label: 'Fijo', hint: 'Mismo monto cada mes o cada año: renta, servicios, suscripciones.' },
   { value: 'plazos', label: 'A plazos', hint: 'Un número de pagos iguales: crédito de la moto, meses sin intereses.' },
   { value: 'variable', label: 'Variable', hint: 'Cada mes, con un monto que cambia: el pago de tu tarjeta de crédito.' },
@@ -22,7 +32,10 @@ const KINDS: readonly { value: PaymentKind; label: string; hint: string }[] = [
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-/** Pagos fijos, créditos a plazos, montos variables y pagos únicos: qué viene, qué ya se pagó y cuánto comprometen. */
+/**
+ * Pagos (fijos, a plazos, variables y únicos) e ingresos programados, en dos pestañas: qué viene, qué
+ * ya se pagó o cobró y cuánto comprometen.
+ */
 @Component({
   selector: 'app-recurring',
   imports: [LucideDynamicIcon, CardComponent, StatTileComponent, CurrencyFormatPipe, DateFormatPipe],
@@ -38,10 +51,43 @@ export class RecurringComponent {
 
   protected readonly months = MONTHS.map((label, i) => ({ value: i + 1, label: capitalize(label) }));
   protected readonly days = Array.from({ length: 31 }, (_, i) => i + 1);
-  protected readonly kinds = KINDS;
   private readonly today = todayIso();
+  private readonly router = inject(Router);
 
-  protected readonly next = computed(() => this.recurring.upcoming().find((o) => o.status === 'pendiente') ?? null);
+  /** Pestaña activa; `?tipo=ingresos` abre la de ingresos. */
+  protected readonly tab = signal<MovementType>(
+    inject(ActivatedRoute).snapshot.queryParamMap.get('tipo') === 'ingresos' ? 'ingreso' : 'egreso',
+  );
+  protected readonly isIncome = computed(() => this.tab() === 'ingreso');
+
+  /** Lo que muestra la pestaña activa. */
+  protected readonly view = computed(() =>
+    this.isIncome()
+      ? {
+          has: this.recurring.incomes().length > 0,
+          rows: this.recurring.incomeRows(),
+          upcoming: this.recurring.incomeUpcoming(),
+          totals: this.recurring.incomeTotals(),
+        }
+      : { has: this.recurring.hasAny(), rows: this.recurring.rows(), upcoming: this.recurring.upcoming(), totals: this.recurring.totals() },
+  );
+
+  protected readonly next = computed(() => this.view().upcoming.find((o) => o.status === 'pendiente') ?? null);
+  protected readonly kindOptions = computed(() => (this.isIncome() ? INCOME_KINDS : KINDS));
+  protected readonly addLabel = computed(() => (this.isIncome() ? 'Agregar ingreso' : 'Agregar pago'));
+
+  protected setTab(tab: MovementType): void {
+    if (tab === this.tab()) return;
+    this.tab.set(tab);
+    this.cancelForm();
+    this.adjusting.set(null);
+    this.router.navigate([], { queryParams: { tipo: tab === 'ingreso' ? 'ingresos' : null }, replaceUrl: true });
+  }
+
+  protected countLabel(n: number): string {
+    if (this.isIncome()) return n === 1 ? '1 ingreso' : `${n} ingresos`;
+    return n === 1 ? '1 pago' : `${n} pagos`;
+  }
 
   // ---------- Formulario ----------
   protected readonly formOpen = signal(false);
@@ -50,6 +96,8 @@ export class RecurringComponent {
   protected readonly installments = signal('');
   protected readonly startMonth = signal(monthKey(todayIso()));
   protected readonly date = signal('');
+  /** 0 = sin segundo día */
+  protected readonly secondDay = signal(0);
   protected readonly name = signal('');
   protected readonly category = signal('');
   protected readonly amount = signal('');
@@ -65,7 +113,18 @@ export class RecurringComponent {
   }
 
   protected kindHint(): string {
-    return KINDS.find((k) => k.value === this.kind())!.hint;
+    return this.kindOptions().find((k) => k.value === this.kind())?.hint ?? '';
+  }
+
+  protected amountLabel(): string {
+    if (this.kind() === 'plazos') return 'Monto de cada pago';
+    if (this.kind() === 'variable') return 'Monto estimado';
+    return 'Monto';
+  }
+
+  /** El segundo día (quincenas) solo aplica a mensuales fijos y a variables. */
+  protected allowsSecondDay(): boolean {
+    return this.kind() === 'variable' || (this.kind() === 'fijo' && this.frequency() === 'mensual');
   }
 
   protected schedule(p: RecurringPayment): string {
@@ -75,16 +134,23 @@ export class RecurringComponent {
       case 'plazos':
         return `Día ${p.day} · ${p.installments} pagos, de ${monthLabel(p.startMonth!)} a ${monthLabel(lastInstallmentMonth(p)!)}`;
       case 'variable':
-        return `Cada mes, día ${p.day} · monto variable`;
+        return `Cada mes, ${this.daysText(p)} · monto variable`;
       default:
-        return p.frequency === 'mensual' ? `Cada mes, día ${p.day}` : `Cada año, ${p.day} de ${MONTHS[(p.month ?? 1) - 1]}`;
+        return p.frequency === 'mensual' ? `Cada mes, ${this.daysText(p)}` : `Cada año, ${p.day} de ${MONTHS[(p.month ?? 1) - 1]}`;
     }
+  }
+
+  private daysText(p: RecurringPayment): string {
+    if (!p.secondDay) return `día ${p.day}`;
+    const [a, b] = [p.day, p.secondDay].sort((x, y) => x - y);
+    return `días ${a} y ${b}`;
   }
 
   /** Lo que se muestra junto al monto: "/mes", "/año", "/pago"… */
   protected period(p: RecurringPayment): string {
     if (p.kind === 'unico') return '';
     if (p.kind === 'plazos') return '/pago';
+    if (p.secondDay) return '/fecha';
     if (p.kind === 'variable') return '/mes';
     return p.frequency === 'mensual' ? '/mes' : '/año';
   }
@@ -134,8 +200,12 @@ export class RecurringComponent {
   }
 
   protected whenLabel(o: Occurrence): string {
-    if (o.status === 'pagado') return 'Pagado';
-    if (o.daysLeft < 0) return o.daysLeft === -1 ? 'Venció ayer' : `Venció hace ${-o.daysLeft} días`;
+    const income = o.payment.type === 'ingreso';
+    if (o.status === 'pagado') return income ? 'Recibido' : 'Pagado';
+    if (o.daysLeft < 0) {
+      if (income) return o.daysLeft === -1 ? 'No llegó ayer' : `Atrasado ${-o.daysLeft} días`;
+      return o.daysLeft === -1 ? 'Venció ayer' : `Venció hace ${-o.daysLeft} días`;
+    }
     if (o.daysLeft === 0) return 'Vence hoy';
     if (o.daysLeft === 1) return 'Mañana';
     return `En ${o.daysLeft} días`;
@@ -151,6 +221,7 @@ export class RecurringComponent {
     this.installments.set('');
     this.startMonth.set(monthKey(this.today));
     this.date.set('');
+    this.secondDay.set(0);
     this.name.set('');
     this.category.set('');
     this.amount.set('');
@@ -170,6 +241,7 @@ export class RecurringComponent {
     this.installments.set(p.installments ? String(p.installments) : '');
     this.startMonth.set(p.startMonth ?? monthKey(this.today));
     this.date.set(p.date ?? '');
+    this.secondDay.set(p.secondDay ?? 0);
     this.name.set(p.name);
     this.category.set(p.category);
     this.amount.set(String(p.amount));
@@ -191,6 +263,7 @@ export class RecurringComponent {
   protected submit(): void {
     const kind = this.kind();
     const input: RecurringInput = {
+      type: this.tab(),
       kind,
       name: this.name(),
       category: this.category(),
@@ -203,13 +276,18 @@ export class RecurringComponent {
       installments: kind === 'plazos' ? Number(this.installments()) : null,
       startMonth: kind === 'plazos' ? this.startMonth() : null,
       date: kind === 'unico' ? this.date() : null,
+      secondDay: this.allowsSecondDay() && this.secondDay() ? this.secondDay() : null,
     };
     const result = this.recurring.save(input, this.editingId() ?? undefined);
     if (!result.ok) {
       this.formError.set(result.error);
       return;
     }
-    this.toast.success(this.editingId() ? `${result.payment.name} actualizado` : `${result.payment.name} agregado a tus pagos`);
+    this.toast.success(
+      this.editingId()
+        ? `${result.payment.name} actualizado`
+        : `${result.payment.name} agregado a tus ${this.isIncome() ? 'ingresos programados' : 'pagos'}`,
+    );
     this.cancelForm();
   }
 
@@ -221,7 +299,7 @@ export class RecurringComponent {
       this.toast.error('No se pudo registrar el pago.');
       return;
     }
-    this.toast.success(`${o.payment.name}: egreso de ${this.fmt(o.amount)} registrado`, {
+    this.toast.success(`${o.payment.name}: ${o.payment.type === 'ingreso' ? 'ingreso' : 'egreso'} de ${this.fmt(o.amount)} registrado`, {
       label: 'Deshacer',
       run: () => this.recurring.undoPaid(o, movement),
     });
@@ -229,8 +307,8 @@ export class RecurringComponent {
 
   protected async remove(p: RecurringPayment): Promise<void> {
     const ok = await this.confirm.ask({
-      title: 'Quitar pago',
-      message: `¿Quitar "${p.name}" de tus pagos? Los egresos que ya registraste no se borran.`,
+      title: p.type === 'ingreso' ? 'Quitar ingreso programado' : 'Quitar pago',
+      message: `¿Quitar "${p.name}"? Los ${p.type === 'ingreso' ? 'ingresos' : 'egresos'} que ya registraste no se borran.`,
       confirmText: 'Quitar',
       danger: true,
     });
